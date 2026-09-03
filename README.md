@@ -110,15 +110,18 @@ pnpm lint
 pnpm --filter @shorts-os/web build
 ```
 
-## Phase 0–1에서 하는 일
+## 지금 되는 것
 
 - Demo 로그인과 워크스페이스 생성 (RLS로 워크스페이스 격리)
 - Niche 등록 후 YouTube 공개 메타데이터 수집 (Demo는 Mock Provider)
 - Topic 후보 점수·신뢰도·결측 표시
 - Topic 승인 / 보류 / 제외 (단건·일괄)와 Workflow Run 기록
+- **Research Brief 생성** (Phase 2A). Gemini Search Grounding으로 출처가 확인된 주장만 남기고, 버전을 쌓습니다
 - Settings에서 Provider 상태와 Phase 잠금 Feature Flag 확인
 
-아직 구현하지 않은 것: Gemini Research, Notebook 동기화, Trends/Ads API, 영상 생성, YouTube 게시. 인터페이스와 Flag만 준비되어 있습니다.
+Research는 Demo Mode에서도 돌아가지만, 웹을 읽지 않으므로 **출처와 사실 주장을 만들지 않습니다.** 구성 틀과 확인이 필요한 항목만 나옵니다. 실제 근거를 채우려면 `.env`에 `APP_MODE=live`, `GEMINI_API_KEY`, `GEMINI_RESEARCH_MODEL`을 넣으세요.
+
+아직 구현하지 않은 것: Notebook 동기화, Trends/Ads API, 영상 생성, YouTube 게시. 인터페이스와 Flag만 준비되어 있습니다.
 
 ## 구조
 

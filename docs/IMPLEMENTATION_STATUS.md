@@ -2,8 +2,8 @@
 
 - 기준 문서: `docs/SHORTS_INTELLIGENCE_OS_SPEC.md`
 - 최근 갱신: 2026-09-03
-- 완료 Phase: **Phase 0, Phase 1**
-- 다음 Phase: Phase 2 (Research Brain과 Notebook Sync) — 승인 후 시작
+- 완료 Phase: **Phase 0, Phase 1, Phase 1.5 보완, Phase 2A (Research Brain)**
+- 다음 Phase: Phase 2B (Notebook Sync) — 승인 후 시작
 
 ---
 
@@ -65,6 +65,39 @@ Phase 1 메뉴는 Dashboard, Niche Radar, Topic Radar, Runs, Settings입니다. 
 
 ---
 
+## 3.5 Phase 1.5 보완
+
+**쿼터 사용량을 메모리에서 DB로 옮겼습니다.** `createQuotaLedger`는 있었지만 수집이 쓰지 않아, Provider 인스턴스 메모리에만 남았습니다. 서버를 재시작하면 그날 쓴 사용량이 0으로 돌아가는데 실제 API 호출은 이미 소비된 상태였습니다. 이제 수집이 `integrations.quota_snapshot`에 증가분을 누적하고, 저장할 `integrations` 행이 없으면 경고를 남깁니다(조용히 넘기지 않습니다).
+
+**Runs 화면을 메뉴에 넣었습니다.** `/runs`는 있었지만 사이드바에 없어 주소를 직접 입력해야 열렸습니다.
+
+**작은 화면 내비게이션을 추가했습니다.** 사이드바가 `lg` 이상에서만 보이는데 대체 메뉴가 없어 모바일에서는 화면 이동과 세션 종료가 불가능했습니다. 같은 메뉴 목록을 쓰는 가로 스크롤 상단 바를 넣었습니다.
+
+**GPU 없는 환경의 스크롤 멈춤을 고쳤습니다.** 고정 헤더의 `backdrop-filter`와 `background-attachment: fixed` 그라디언트가 스크롤 프레임마다 다시 그려졌습니다.
+
+**통합 테스트가 셸 환경변수에 의존했습니다.** CLI와 같은 `.env` 로더를 쓰도록 바꿨습니다.
+
+## 3.6 Phase 2A — Research Brain
+
+Gemini Search Grounding으로 Topic별 Research Brief를 만듭니다. Notebook 동기화는 포함하지 않습니다(Phase 2B).
+
+| 완료 조건 | 상태 | 근거 |
+|---|---|---|
+| 출처 없는 주장을 저장하지 않음 | 완료 | `groundingMetadata`에 실제로 온 URL과 대조해 남기고, 매핑되지 않은 `keyFacts`는 버립니다(`mergeCitations`, `dropUngroundedFacts`) |
+| Demo Mode에서 Key 없이 동작 | 완료 | `MockResearchProvider`는 인용을 만들지 않고 `citations: []`, `keyFacts: []`로 두고 미확인 항목만 남깁니다 |
+| Brief를 덮어쓰지 않음 | 완료 | `unique(topic_id, version)`에 맞춰 version을 올려 쌓습니다. 통합 테스트로 v1→v2 확인 |
+| 같은 Idempotency Key가 중복 Run을 만들지 않음 | 완료 | `topic.research` Run 재사용, 통합 테스트 6개 |
+| Provider 오류가 Run에 남음 | 완료 | 429/5xx/401 정규화, 실패 시 Run이 `failed`로 기록 |
+| 근거 충실도를 보여줌 | 완료 | `citation_coverage`는 인용을 가진 `keyFacts` 비율이고, 사실 항목이 없으면 `null`(N/A)입니다 |
+
+Brief 상태는 인용이 하나도 없으면 `needs_review`, 있으면 `ready`입니다. Demo Mode는 항상 `needs_review`입니다.
+
+`geminiResearch` 플래그 기본값은 스펙 14.4대로 `false`입니다. Demo 워크스페이스는 시드가 `workspace_settings.feature_flags`로 켭니다. Live로 쓰려면 `APP_MODE=live`, `GEMINI_API_KEY`, `GEMINI_RESEARCH_MODEL`이 필요하고, 없으면 Provider가 무엇이 필요한지 오류로 알려줍니다.
+
+추가된 API: `POST/GET /api/v1/workspaces/:workspaceId/topics/:topicId/research`
+
+---
+
 ## 4. 구조
 
 ```
@@ -117,8 +150,8 @@ Domain은 `@shorts-os/contracts`만 알고 DB나 Provider를 모릅니다. Provi
 
 ## 7. 검증 기록
 
-- 단위 테스트 57개: 점수 계산 10, Velocity 14, Topic 발견 6, Provider 9, Flag·env 9, Contract 8, dotenv 로더 1
-- 통합 테스트 6개(실제 PostgreSQL): 워크스페이스 격리 4, Idempotency 1, 수집→점수→승인 수직 슬라이스 1
+- 단위 테스트 76개: 점수 계산 10, Velocity 14, Topic 발견 6, YouTube Provider 9, Flag·env 10, Contract 8, dotenv 로더 1, Research Contract 4, Mock Research 6, Gemini Grounding 8
+- 통합 테스트 12개(실제 PostgreSQL): 워크스페이스 격리 4, Idempotency 1, 수집→점수→승인 1, Research Brief 6
 - 브라우저 검증 25개(프로덕션 빌드, Chrome): 로그인, 대시보드 KPI, Niche 목록·Provider 상태, 수집 실행, Topic 목록·Score Breakdown·결측 N/A, 필터, 승인, Run 기록, Settings 잠금 표시, 403 차단, Idempotency-Key 필수, 모바일 레이아웃. 콘솔·서버 오류 0건
 ### 공식 Seed 기준값
 
@@ -155,8 +188,8 @@ Dashboard 집계와 Topic Radar 목록은 같은 `listTopics(limit=100)` 결과�
 
 ---
 
-## 9. Phase 2 진입 전 확인할 것
+## 9. Phase 2B 진입 전 확인할 것
 
-1. Gemini API Key와 예산 상한
-2. Notebook Enterprise를 쓸지 여부(Google Cloud 프로젝트와 라이선스 필요). 쓰지 않으면 Research Brief는 Gemini API만으로 완결됩니다
-3. Search Grounding 결과의 출처 보관 정책(원문 저장 범위, 보존 기간)
+1. Notebook Enterprise를 쓸지 여부(Google Cloud 프로젝트와 라이선스 필요). 쓰지 않아도 Research Brief는 Gemini API만으로 완결됩니다
+2. Search Grounding 결과의 출처 보관 정책. 현재는 URL·제목·발행처만 `sources`에 남기고 원문은 저장하지 않으며 `rights_status`는 `reference_only`입니다
+3. Gemini 예산 상한. 현재 Brief 1건당 비용을 기록하지 않습니다(`workflow_runs`의 cost 컬럼은 비어 있습니다)
