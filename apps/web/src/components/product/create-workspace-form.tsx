@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 
 export function CreateWorkspaceForm() {
   const router = useRouter();
-  const [name, setName] = useState("");
+  /** 한글 IME가 없는 환경에서도 바로 만들 수 있게 기본값을 채워둔다. */
+  const [name, setName] = useState("내 채널 운영실");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

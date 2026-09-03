@@ -59,6 +59,17 @@ export function NicheRadarClient({
 
   const canWrite = roleHasPermission(role, "niche:write");
 
+  /** 한글 IME가 없는 환경(원격 브라우저, 일부 태블릿)에서도 바로 시도할 수 있게 한다. */
+  function fillExample() {
+    setForm({
+      name: "연말정산 절세",
+      targetCountry: "KR",
+      targetLanguage: "ko",
+      seedKeywords: "연말정산, 세액공제, 환급",
+      excludeTerms: "",
+    });
+  }
+
   async function callApi(path: string, init: RequestInit) {
     const response = await fetch(path, {
       ...init,
@@ -187,7 +198,16 @@ export function NicheRadarClient({
         <div className="rounded-2xl border border-border/70 bg-card p-5">
           {creating ? (
             <div className="space-y-3">
-              <h2 className="text-sm font-bold">새 Niche</h2>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-sm font-bold">새 Niche</h2>
+                <button
+                  type="button"
+                  onClick={fillExample}
+                  className="text-[11px] text-muted-foreground underline decoration-border underline-offset-4 hover:text-foreground"
+                >
+                  한글 예시 채우기
+                </button>
+              </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="block text-[12px]">
                   <span className="text-muted-foreground">이름</span>
