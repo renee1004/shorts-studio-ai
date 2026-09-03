@@ -22,6 +22,9 @@
       "@shorts-os/config": [
         "./packages/config/src/index.ts"
       ],
+      "@shorts-os/config/dotenv": [
+        "./packages/config/src/load-dotenv.ts"
+      ],
       "@shorts-os/observability": [
         "./packages/observability/src/index.ts"
       ],

@@ -5,6 +5,7 @@
     "types": ["node"],
     "paths": {
       "@shorts-os/config": ["./packages/config/src/index.ts"],
+      "@shorts-os/config/dotenv": ["./packages/config/src/load-dotenv.ts"],
       "@shorts-os/observability": ["./packages/observability/src/index.ts"],
       "@shorts-os/contracts": ["./packages/contracts/src/index.ts"],
       "@shorts-os/db": ["./packages/db/src/index.ts"],

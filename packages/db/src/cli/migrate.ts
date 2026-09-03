@@ -1,4 +1,4 @@
-import { loadDotenv } from "@shorts-os/config";
+import { loadDotenv } from "@shorts-os/config/dotenv";
 import { runMigrations } from "../migrate";
 
 loadDotenv();

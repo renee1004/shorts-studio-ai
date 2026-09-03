@@ -1,4 +1,4 @@
-import { loadDotenv } from "@shorts-os/config";
+import { loadDotenv } from "@shorts-os/config/dotenv";
 import { closePools, serviceDb } from "@shorts-os/db";
 import { seedDemoWorkspace } from "../seed";
 

@@ -115,7 +115,7 @@ Domain은 `@shorts-os/contracts`만 알고 DB나 Provider를 모릅니다. Provi
 
 ## 7. 검증 기록
 
-- 단위 테스트 56개: 점수 계산 10, Velocity 14, Topic 발견 6, Provider 9, Flag·env 9, Contract 8
+- 단위 테스트 57개: 점수 계산 10, Velocity 14, Topic 발견 6, Provider 9, Flag·env 9, Contract 8, dotenv 로더 1
 - 통합 테스트 6개(실제 PostgreSQL): 워크스페이스 격리 4, Idempotency 1, 수집→점수→승인 수직 슬라이스 1
 - 브라우저 검증 25개(프로덕션 빌드, Chrome): 로그인, 대시보드 KPI, Niche 목록·Provider 상태, 수집 실행, Topic 목록·Score Breakdown·결측 N/A, 필터, 승인, Run 기록, Settings 잠금 표시, 403 차단, Idempotency-Key 필수, 모바일 레이아웃. 콘솔·서버 오류 0건
 - 시드 결과: 워크스페이스 1, Niche 3, Topic 17, 참고 영상 105편, Niche 스냅샷 3. Score/Confidence 세 프로파일(제작 후보·데이터 보강·보류)이 데이터에서 자연히 발생
