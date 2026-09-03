@@ -17,7 +17,16 @@ Playbook(수동 NotebookLM 가이드)은 헤더의 **Playbook** 링크 또는 `/
 
 ## 로컬에서 실행하기
 
-Node 20 이상과 PostgreSQL 16(`pgcrypto`, `citext`, `vector`)이 필요합니다. 외부 API Key는 Demo Mode에서 필요 없습니다.
+**`bash`는 명령 앞에 붙이지 마세요.** `bash pnpm ...` 이나 `bash DATABASE_URL=...` 는 파일이 없다고 나옵니다. 아래처럼 저장소 폴더에서 한 줄만 실행하면 됩니다.
+
+```bash
+cd ~/shorts-studio-ai
+bash scripts/start-local.sh
+```
+
+이 스크립트가 pnpm 설치, `.env` 복사, PostgreSQL 확인, 마이그레이션, Demo 시드, 개발 서버를 순서대로 합니다. 끝나면 브라우저에서 http://127.0.0.1:43117/login 을 열고 **Demo 워크스페이스로 들어가기**를 누릅니다.
+
+Node 20 이상과 PostgreSQL 16(`pgcrypto`, `citext`, `vector`)이 필요합니다. 외부 API Key는 Demo Mode에서 필요 없습니다. 단계를 직접 치고 싶다면 아래를 보세요.
 
 ### 1. pnpm 설치
 
