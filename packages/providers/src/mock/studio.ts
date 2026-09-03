@@ -194,14 +194,19 @@ export class MockContentStudioProvider implements ContentStudioProvider {
             statement: `${input.topicTitle}의 공개 자료는 Demo에서 확인하지 못했습니다.`,
             unverified: true,
             citationIndexes: [] as number[],
+            sourceIds: [] as string[],
           },
         ]
       : facts.map((fact, index) => ({
           claimKey: fact.claimKey || `fact_${index + 1}`,
           statement: fact.statement,
-          unverified: fact.unverified || input.citationCount === 0,
-          citationIndexes:
-            !fact.unverified && input.citationCount > 0 ? [Math.min(index, input.citationCount - 1)] : [],
+          unverified:
+            fact.unverified ||
+            !fact.citationIndexes.some((citationIndex) => citationIndex < input.citationCount),
+          citationIndexes: fact.citationIndexes.filter(
+            (citationIndex) => citationIndex < input.citationCount,
+          ),
+          sourceIds: [] as string[],
         }));
 
     const beats = [

@@ -76,6 +76,7 @@ export default async function StudioProjectPage({
           severity: row.severity,
           findings: (row.findings as { code: string; message: string }[]) ?? [],
         }))}
+        approvalReadiness={detail.approvalReadiness}
         snapshotHashes={detail.approvals.map((row) => ({
           id: row.id,
           decision: row.decision,

@@ -34,7 +34,13 @@ const structured = structuredScriptSchema.parse({
 describe("runQaChecks", () => {
   it("매핑되지 않은 사실 주장은 blocker다", () => {
     const claims: FactualClaim[] = [
-      { claimKey: "c1", statement: "사실", unverified: false, citationIndexes: [] },
+      {
+        claimKey: "c1",
+        statement: "사실",
+        unverified: false,
+        citationIndexes: [],
+        sourceIds: [],
+      },
     ];
     const checks = runQaChecks({
       scriptText: "original narration about a unique workflow",
@@ -55,7 +61,15 @@ describe("runQaChecks", () => {
     const checks = runQaChecks({
       scriptText: "original narration about a unique workflow",
       structured,
-      claims: [{ claimKey: "c1", statement: "사실", unverified: true, citationIndexes: [] }],
+      claims: [
+        {
+          claimKey: "c1",
+          statement: "사실",
+          unverified: true,
+          citationIndexes: [],
+          sourceIds: [],
+        },
+      ],
       citationCount: 0,
       targetDurationSeconds: 45,
       estimatedDurationSeconds: 40,

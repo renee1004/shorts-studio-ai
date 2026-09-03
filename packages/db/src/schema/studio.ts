@@ -12,7 +12,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { projectStatusEnum, qaResultEnum } from "./enums";
 import { referenceVideos, topics } from "./radar";
-import { researchBriefs } from "./research";
+import { researchBriefs, sources } from "./research";
 import { workspaces } from "./workspace";
 
 export const dnaPatterns = pgTable("dna_patterns", {
@@ -115,6 +115,27 @@ export const scripts = pgTable(
   (table) => [unique().on(table.contentProjectId, table.version)],
 );
 
+export const scriptCitations = pgTable(
+  "script_citations",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    scriptId: uuid("script_id")
+      .notNull()
+      .references(() => scripts.id, { onDelete: "cascade" }),
+    sourceId: uuid("source_id")
+      .notNull()
+      .references(() => sources.id, { onDelete: "restrict" }),
+    claimKey: text("claim_key").notNull(),
+    quoteExcerpt: text("quote_excerpt"),
+    supportLevel: text("support_level").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique().on(table.scriptId, table.sourceId, table.claimKey)],
+);
+
 export const shots = pgTable(
   "shots",
   {
@@ -159,5 +180,6 @@ export const qaReviews = pgTable("qa_reviews", {
   findings: jsonb("findings").notNull().default([]),
   modelName: text("model_name"),
   ruleVersion: text("rule_version").notNull(),
+  inputHash: text("input_hash"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

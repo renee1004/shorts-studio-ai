@@ -3,6 +3,7 @@ import {
   claimsHaveCitationOrFlag,
   normalizeFactualClaims,
   parseYouTubeVideoId,
+  qaCheckTypes,
   type CreateProjectInput,
   type FactualClaim,
   type ImportReferenceVideoInput,
@@ -24,6 +25,7 @@ import {
   getAngle,
   getContentProject,
   getLatestResearchBrief,
+  getResearchBriefById,
   getReferenceVideo,
   getScript,
   getTopicDetail,
@@ -33,6 +35,7 @@ import {
   insertDnaPattern,
   insertQaReviews,
   insertScript,
+  insertScriptCitations,
   listAngles,
   listApprovals,
   listContentProjects,
@@ -40,6 +43,7 @@ import {
   listEligibleStudioTopics,
   listLatestQa,
   listReferenceVideosForLibrary,
+  listScriptCitations,
   listScripts,
   listShots,
   mergeReferenceMetadata,
@@ -47,15 +51,18 @@ import {
   nextScriptVersion,
   readImportMeta,
   replaceShots,
+  resolveBriefCitationSources,
   selectAngle,
   startWorkflowRun,
-  updateDraftScript,
   updateProjectStatus,
   upsertReferenceVideos,
   writeAuditLog,
   type ContentProjectRow,
   type Database,
+  type ScriptCitationRow,
   type ScriptRow,
+  type ShotRow,
+  type StoredBrief,
 } from "@shorts-os/db";
 import type { ContentStudioProvider, YouTubeDiscoveryProvider } from "@shorts-os/providers";
 
@@ -67,6 +74,15 @@ type ProjectApprovalInput = {
 
 function scriptTextFrom(structured: StructuredScript): string {
   return structured.beats.map((beat) => beat.narration).join("\n");
+}
+
+function storedClaims(value: unknown): FactualClaim[] {
+  if (!Array.isArray(value)) return [];
+  return (value as FactualClaim[]).map((claim) => ({
+    ...claim,
+    citationIndexes: Array.isArray(claim.citationIndexes) ? claim.citationIndexes : [],
+    sourceIds: Array.isArray(claim.sourceIds) ? claim.sourceIds : [],
+  }));
 }
 
 function shotsFromScript(structured: StructuredScript): ShotDraft[] {
@@ -82,6 +98,147 @@ function shotsFromScript(structured: StructuredScript): ShotDraft[] {
     negativePrompt: "on-screen text, watermark, logo copy",
     assetStrategy: beat.purpose === "cta" ? "motion_graphic" : "ai_video",
   }));
+}
+
+async function pinnedBrief(
+  db: Database,
+  workspaceId: string,
+  project: ContentProjectRow,
+): Promise<StoredBrief | null> {
+  if (!project.researchBriefId) return null;
+  const brief = await getResearchBriefById(db, workspaceId, project.researchBriefId);
+  if (!brief || brief.topicId !== project.topicId) {
+    throw new DomainError(
+      "CONFLICT",
+      "Project에 고정된 Research Brief가 없거나 다른 Topic 소속입니다.",
+    );
+  }
+  return brief;
+}
+
+function fullShotSnapshot(shot: ShotRow) {
+  return {
+    id: shot.id,
+    scriptId: shot.scriptId,
+    sequenceNo: shot.sequenceNo,
+    startSeconds: shot.startSeconds,
+    endSeconds: shot.endSeconds,
+    narration: shot.narration,
+    onScreenText: shot.onScreenText,
+    visualDescription: shot.visualDescription,
+    cameraDirection: shot.cameraDirection,
+    generationPrompt: shot.generationPrompt,
+    negativePrompt: shot.negativePrompt,
+    assetStrategy: shot.assetStrategy,
+    status: shot.status,
+  };
+}
+
+function fullCitationSnapshot(mapping: ScriptCitationRow) {
+  return {
+    claimKey: mapping.claimKey,
+    sourceId: mapping.sourceId,
+    quoteExcerpt: mapping.quoteExcerpt,
+    supportLevel: mapping.supportLevel,
+  };
+}
+
+function qaInputHash(input: {
+  project: ContentProjectRow;
+  brief: StoredBrief | null;
+  script: ScriptRow;
+  shots: ShotRow[];
+  citations: ScriptCitationRow[];
+}): string {
+  return snapshotHash({
+    projectId: input.project.id,
+    researchBriefId: input.brief?.id ?? null,
+    researchBriefInputHash: input.brief?.inputHash ?? null,
+    script: {
+      id: input.script.id,
+      version: input.script.version,
+      title: input.script.title,
+      hook: input.script.hook,
+      scriptText: input.script.scriptText,
+      structuredScript: input.script.structuredScript,
+      factualClaims: input.script.factualClaims,
+      inputHash: input.script.inputHash,
+      status: input.script.status,
+    },
+    citations: input.citations.map(fullCitationSnapshot),
+    shots: input.shots.map(fullShotSnapshot),
+  });
+}
+
+async function loadIntegrityInput(
+  db: Database,
+  workspaceId: string,
+  project: ContentProjectRow,
+  script: ScriptRow,
+) {
+  if (script.contentProjectId !== project.id) {
+    throw new DomainError("CONFLICT", "Script가 현재 Project 소속이 아닙니다.");
+  }
+  const [brief, shotRows, citationRows] = await Promise.all([
+    pinnedBrief(db, workspaceId, project),
+    listShots(db, workspaceId, script.id),
+    listScriptCitations(db, workspaceId, script.id),
+  ]);
+  return {
+    brief,
+    shots: shotRows,
+    citations: citationRows,
+    inputHash: qaInputHash({
+      project,
+      brief,
+      script,
+      shots: shotRows,
+      citations: citationRows,
+    }),
+  };
+}
+
+function sourceMappingErrors(input: {
+  claims: FactualClaim[];
+  briefSources: Array<{ citationIndex: number; sourceId: string }>;
+  scriptCitations: ScriptCitationRow[];
+}): string[] {
+  const sourceByIndex = new Map(
+    input.briefSources.map((source) => [source.citationIndex, source.sourceId]),
+  );
+  const actual = new Map<string, Set<string>>();
+  for (const mapping of input.scriptCitations) {
+    const bucket = actual.get(mapping.claimKey) ?? new Set<string>();
+    bucket.add(mapping.sourceId);
+    actual.set(mapping.claimKey, bucket);
+  }
+
+  const errors: string[] = [];
+  const claimKeys = new Set(input.claims.map((claim) => claim.claimKey));
+  for (const mapping of input.scriptCitations) {
+    if (!claimKeys.has(mapping.claimKey)) {
+      errors.push(`${mapping.claimKey}: 존재하지 않는 Claim의 script_citations 매핑입니다.`);
+    }
+  }
+  for (const claim of input.claims) {
+    const resolved = claim.citationIndexes
+      .map((index) => sourceByIndex.get(index))
+      .filter((sourceId): sourceId is string => Boolean(sourceId));
+    const expected = [...new Set(resolved)].sort();
+    const storedInClaim = [...new Set(claim.sourceIds ?? [])].sort();
+    const persisted = [...(actual.get(claim.claimKey) ?? new Set<string>())].sort();
+
+    if (!claim.unverified && expected.length !== claim.citationIndexes.length) {
+      errors.push(`${claim.claimKey}: Research Citation에 해당하는 Source가 없습니다.`);
+    }
+    if (JSON.stringify(expected) !== JSON.stringify(storedInClaim)) {
+      errors.push(`${claim.claimKey}: Claim sourceIds가 Research Citation과 다릅니다.`);
+    }
+    if (JSON.stringify(expected) !== JSON.stringify(persisted)) {
+      errors.push(`${claim.claimKey}: script_citations 매핑이 Claim과 다릅니다.`);
+    }
+  }
+  return errors;
 }
 
 export async function importReferenceVideo(options: {
@@ -267,7 +424,22 @@ export async function createStudioProject(options: {
     );
   }
 
-  const brief = await getLatestResearchBrief(options.db, options.workspaceId, options.request.topicId);
+  const brief = options.request.researchBriefId
+    ? await getResearchBriefById(
+        options.db,
+        options.workspaceId,
+        options.request.researchBriefId,
+      )
+    : await getLatestResearchBrief(options.db, options.workspaceId, options.request.topicId);
+  if (
+    options.request.researchBriefId &&
+    (!brief || brief.topicId !== options.request.topicId)
+  ) {
+    throw new DomainError(
+      "CONFLICT",
+      "선택한 Research Brief가 없거나 이 Topic 소속이 아닙니다.",
+    );
+  }
 
   const project = await insertContentProject(options.db, {
     workspaceId: options.workspaceId,
@@ -293,9 +465,7 @@ export async function generateProjectAngles(options: {
   idempotencyKey: string | null;
 }) {
   const project = await requireProject(options.db, options.workspaceId, options.projectId);
-  const brief = project.researchBriefId
-    ? await getLatestResearchBrief(options.db, options.workspaceId, project.topicId)
-    : null;
+  const brief = await pinnedBrief(options.db, options.workspaceId, project);
 
   const run = await startWorkflowRun(options.system, {
     workspaceId: options.workspaceId,
@@ -395,12 +565,13 @@ export async function generateProjectScript(options: {
   const angle = await getAngle(options.db, options.workspaceId, project.selectedAngleId);
   if (!angle) throw new DomainError("NOT_FOUND", "선택한 Angle을 찾을 수 없습니다.");
 
-  const brief = await getLatestResearchBrief(options.db, options.workspaceId, project.topicId);
+  const brief = await pinnedBrief(options.db, options.workspaceId, project);
   const citationCount = brief?.content.citations.length ?? 0;
   const keyFacts = (brief?.content.keyFacts ?? []).map((fact, index) => ({
     statement: fact.statement,
     claimKey: `fact_${index + 1}`,
     unverified: fact.citationIndexes.length === 0,
+    citationIndexes: [...fact.citationIndexes],
   }));
 
   const run = await startWorkflowRun(options.system, {
@@ -429,10 +600,57 @@ export async function generateProjectScript(options: {
       citationCount,
     });
 
-    const claims = normalizeFactualClaims(
-      result.structured.factualClaims as FactualClaim[],
+    const researchFactByKey = new Map(keyFacts.map((fact) => [fact.claimKey, fact]));
+    const providerClaims = (result.structured.factualClaims as FactualClaim[]).map(
+      (claim) => {
+        const researchFact = researchFactByKey.get(claim.claimKey);
+        return researchFact
+          ? {
+              ...claim,
+              statement: researchFact.statement,
+              unverified: researchFact.unverified,
+              citationIndexes: [...researchFact.citationIndexes],
+              sourceIds: [],
+            }
+          : {
+              ...claim,
+              unverified: true,
+              citationIndexes: [],
+              sourceIds: [],
+            };
+      },
+    );
+    const normalizedClaims = normalizeFactualClaims(
+      providerClaims,
       citationCount,
     );
+    const briefSources = brief
+      ? await resolveBriefCitationSources(options.db, options.workspaceId, brief)
+      : [];
+    const sourceByIndex = new Map(
+      briefSources.map((source) => [source.citationIndex, source.sourceId]),
+    );
+    const claims = normalizedClaims.map((claim) => ({
+      ...claim,
+      sourceIds: [
+        ...new Set(
+          claim.citationIndexes
+            .map((citationIndex) => sourceByIndex.get(citationIndex))
+            .filter((sourceId): sourceId is string => Boolean(sourceId)),
+        ),
+      ],
+    }));
+    const unresolved = claims.some(
+      (claim) =>
+        !claim.unverified &&
+        claim.citationIndexes.some((citationIndex) => !sourceByIndex.has(citationIndex)),
+    );
+    if (unresolved) {
+      throw new DomainError(
+        "CONFLICT",
+        "Research Citation에 대응하는 Source가 없어 Script를 만들 수 없습니다.",
+      );
+    }
     if (!claimsHaveCitationOrFlag(claims)) {
       throw new DomainError("VALIDATION_FAILED", "사실 주장에 출처 또는 미확인 표시가 필요합니다.");
     }
@@ -440,7 +658,16 @@ export async function generateProjectScript(options: {
     const text = scriptTextFrom({ ...result.structured, factualClaims: claims });
     const version = await nextScriptVersion(options.db, options.workspaceId, project.id);
     const inputHash = createHash("sha256")
-      .update([project.id, angle.id, angle.version, result.promptVersion].join("|"))
+      .update(
+        [
+          project.id,
+          angle.id,
+          angle.version,
+          brief?.id ?? "no-brief",
+          brief?.inputHash ?? "no-brief-hash",
+          result.promptVersion,
+        ].join("|"),
+      )
       .digest("hex")
       .slice(0, 32);
 
@@ -459,6 +686,18 @@ export async function generateProjectScript(options: {
       promptVersion: result.promptVersion,
       inputHash,
       createdBy: options.userId,
+    });
+    await insertScriptCitations(options.db, {
+      workspaceId: options.workspaceId,
+      scriptId: script.id,
+      mappings: claims.flatMap((claim) =>
+        claim.sourceIds.map((sourceId) => ({
+          sourceId,
+          claimKey: claim.claimKey,
+          quoteExcerpt: claim.statement,
+          supportLevel: "direct" as const,
+        })),
+      ),
     });
 
     const shots = await replaceShots(
@@ -507,7 +746,9 @@ export async function restoreScriptVersion(options: {
   if (!source || source.contentProjectId !== project.id) {
     throw new DomainError("NOT_FOUND", "복구할 Script를 찾을 수 없습니다.");
   }
-  const structured = source.structuredScript as StructuredScript;
+  const originalStructured = source.structuredScript as StructuredScript;
+  const claims = storedClaims(source.factualClaims);
+  const structured = { ...originalStructured, factualClaims: claims };
   const version = await nextScriptVersion(options.db, options.workspaceId, project.id);
   const restored = await insertScript(options.db, {
     workspaceId: options.workspaceId,
@@ -518,7 +759,7 @@ export async function restoreScriptVersion(options: {
     scriptText: source.scriptText,
     wordCount: source.wordCount,
     estimatedDurationSeconds: Number(source.estimatedDurationSeconds),
-    claims: source.factualClaims as FactualClaim[],
+    claims,
     originalitySummary: (source.originalitySummary as Record<string, unknown>) ?? {},
     modelName: source.modelName ?? "restore",
     promptVersion: source.promptVersion,
@@ -526,7 +767,20 @@ export async function restoreScriptVersion(options: {
     createdBy: options.userId,
     status: "draft",
   });
-  const previousShots = await listShots(options.db, options.workspaceId, source.id);
+  const [previousShots, previousCitations] = await Promise.all([
+    listShots(options.db, options.workspaceId, source.id),
+    listScriptCitations(options.db, options.workspaceId, source.id),
+  ]);
+  await insertScriptCitations(options.db, {
+    workspaceId: options.workspaceId,
+    scriptId: restored.id,
+    mappings: previousCitations.map((citation) => ({
+      sourceId: citation.sourceId,
+      claimKey: citation.claimKey,
+      quoteExcerpt: citation.quoteExcerpt,
+      supportLevel: citation.supportLevel as "direct" | "partial" | "context",
+    })),
+  });
   await replaceShots(
     options.db,
     options.workspaceId,
@@ -550,6 +804,7 @@ export async function restoreScriptVersion(options: {
 export async function patchDraftScript(options: {
   db: Database;
   workspaceId: string;
+  userId: string;
   scriptId: string;
   title?: string;
   hook?: string;
@@ -557,18 +812,97 @@ export async function patchDraftScript(options: {
 }) {
   const script = await getScript(options.db, options.workspaceId, options.scriptId);
   if (!script) throw new DomainError("NOT_FOUND", "Script를 찾을 수 없습니다.");
-  if (script.status !== "draft") {
-    throw new DomainError("INVALID_STATE_TRANSITION", "초안만 수정할 수 있습니다. 새 버전을 만드세요.");
-  }
-  const text = options.scriptText ?? script.scriptText;
-  await updateDraftScript(options.db, options.workspaceId, script.id, {
-    ...(options.title ? { title: options.title } : {}),
-    ...(options.hook ? { hook: options.hook } : {}),
-    ...(options.scriptText ? { scriptText: options.scriptText } : {}),
-    wordCount: tokenize(text).length,
+  const project = await requireProject(
+    options.db,
+    options.workspaceId,
+    script.contentProjectId,
+  );
+  const oldStructured = script.structuredScript as StructuredScript;
+  const originalClaims = storedClaims(script.factualClaims);
+  const requestedText = options.scriptText?.trim() ?? script.scriptText;
+  const initialParagraphs = requestedText
+    .split(/\n+/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+  const paragraphs = initialParagraphs.length > 0 ? initialParagraphs : [requestedText];
+  if (options.hook) paragraphs[0] = options.hook;
+
+  const text = paragraphs.join("\n");
+  const claims =
+    options.scriptText === undefined
+      ? originalClaims
+      : originalClaims.filter((claim) => text.includes(claim.statement));
+  const duration = oldStructured.targetDurationSeconds;
+  const segment = duration / paragraphs.length;
+  const structured: StructuredScript = {
+    ...oldStructured,
+    title: options.title ?? script.title,
+    hook: options.hook ?? paragraphs[0] ?? script.hook,
+    beats: paragraphs.map((narration, index) => ({
+      beatId: `b${index + 1}`,
+      startSeconds: Math.round(index * segment * 100) / 100,
+      endSeconds: Math.round((index + 1) * segment * 100) / 100,
+      purpose:
+        index === 0 ? "hook" : index === paragraphs.length - 1 ? "cta" : "content",
+      narration,
+      onScreenText:
+        index === 0 ? (options.hook ?? oldStructured.beats[0]?.onScreenText ?? "") : "",
+      claimKeys: claims
+        .filter((claim) => narration.includes(claim.statement))
+        .map((claim) => claim.claimKey),
+    })),
+    factualClaims: claims,
     estimatedDurationSeconds: estimateSpokenSeconds(text),
+  };
+  const version = await nextScriptVersion(options.db, options.workspaceId, project.id);
+  const created = await insertScript(options.db, {
+    workspaceId: options.workspaceId,
+    projectId: project.id,
+    angleId: script.contentAngleId,
+    version,
+    structured,
+    scriptText: text,
+    wordCount: tokenize(text).length,
+    estimatedDurationSeconds: structured.estimatedDurationSeconds,
+    claims,
+    originalitySummary: (script.originalitySummary as Record<string, unknown>) ?? {},
+    modelName: script.modelName ?? "manual-edit",
+    promptVersion: script.promptVersion,
+    inputHash: snapshotHash({
+      parentScriptId: script.id,
+      structured,
+      claims,
+    }),
+    createdBy: options.userId,
+    status: "draft",
   });
-  return getScript(options.db, options.workspaceId, script.id);
+
+  const previousCitations = await listScriptCitations(
+    options.db,
+    options.workspaceId,
+    script.id,
+  );
+  const claimKeys = new Set(claims.map((claim) => claim.claimKey));
+  await insertScriptCitations(options.db, {
+    workspaceId: options.workspaceId,
+    scriptId: created.id,
+    mappings: previousCitations
+      .filter((citation) => claimKeys.has(citation.claimKey))
+      .map((citation) => ({
+        sourceId: citation.sourceId,
+        claimKey: citation.claimKey,
+        quoteExcerpt: citation.quoteExcerpt,
+        supportLevel: citation.supportLevel as "direct" | "partial" | "context",
+      })),
+  });
+  const shotRows = await replaceShots(
+    options.db,
+    options.workspaceId,
+    created.id,
+    shotsFromScript(structured),
+  );
+  await updateProjectStatus(options.db, options.workspaceId, project.id, "scripting");
+  return { script: created, shots: shotRows, qaRequired: true };
 }
 
 export async function generateShotsForScript(options: {
@@ -623,20 +957,51 @@ export async function runProjectQa(options: {
     const referenceTexts = (detail?.videos ?? []).map(
       (row) => `${row.video.title}\n${row.video.description ?? ""}`,
     );
-    const brief = await getLatestResearchBrief(options.db, options.workspaceId, project.topicId);
+    const integrity = await loadIntegrityInput(
+      options.db,
+      options.workspaceId,
+      project,
+      script,
+    );
+    const briefSources = integrity.brief
+      ? await resolveBriefCitationSources(
+          options.db,
+          options.workspaceId,
+          integrity.brief,
+        )
+      : [];
     const structured = script.structuredScript as StructuredScript;
-    const claims = script.factualClaims as FactualClaim[];
+    const claims = storedClaims(script.factualClaims);
+    const mappingErrors = sourceMappingErrors({
+      claims,
+      briefSources,
+      scriptCitations: integrity.citations,
+    });
     const checks = runQaChecks({
       scriptText: script.scriptText,
       structured,
       claims,
-      citationCount: brief?.content.citations.length ?? 0,
+      citationCount: integrity.brief?.content.citations.length ?? 0,
       targetDurationSeconds: project.targetDurationSeconds,
       estimatedDurationSeconds: Number(script.estimatedDurationSeconds),
       referenceTexts,
       hasBrandProfile: Boolean(project.brandProfileId),
       checks: options.checks,
     });
+    if (mappingErrors.length > 0) {
+      const fact = checks.find((check) => check.type === "fact");
+      if (fact) {
+        fact.result = "fail";
+        fact.score = 0;
+        fact.severity = "blocker";
+        fact.findings.push(
+          ...mappingErrors.map((message) => ({
+            code: "SOURCE_MAPPING_INVALID",
+            message,
+          })),
+        );
+      }
+    }
 
     const rows = await insertQaReviews(options.db, {
       workspaceId: options.workspaceId,
@@ -645,6 +1010,7 @@ export async function runProjectQa(options: {
       checks,
       ruleVersion: "content.qa.v1",
       modelName: "deterministic-qa",
+      inputHash: integrity.inputHash,
     });
     await updateProjectStatus(options.db, options.workspaceId, project.id, "qa_review");
     await addWorkflowStep(options.system, {
@@ -695,33 +1061,57 @@ export async function decideProjectApproval(options: {
     ? await getScript(options.db, options.workspaceId, options.request.scriptId)
     : (versions[0] ?? null);
   if (!script) throw new DomainError("NOT_FOUND", "승인할 Script가 없습니다.");
-
-  const qaRows = await listLatestQa(options.db, options.workspaceId, project.id, script.id);
-  const latestByType = new Map<string, (typeof qaRows)[number]>();
-  for (const row of qaRows) {
-    if (!latestByType.has(row.checkType)) latestByType.set(row.checkType, row);
-  }
-  const latest = [...latestByType.values()];
-  const blocking = latest.some((row) => row.severity === "blocker");
-
-  if (options.request.decision === "approved" && blocking) {
-    throw new DomainError("INVALID_STATE_TRANSITION", "Blocker QA가 있어 승인할 수 없습니다.");
+  if (script.contentProjectId !== project.id) {
+    throw new DomainError("CONFLICT", "Script가 현재 Project 소속이 아닙니다.");
   }
 
-  const shotRows = await listShots(options.db, options.workspaceId, script.id);
+  const readiness = await getProjectApprovalReadiness(
+    options.db,
+    options.workspaceId,
+    project,
+    script,
+  );
+  if (options.request.decision === "approved" && !readiness.canApprove) {
+    throw new DomainError("CONFLICT", readiness.message, {
+      details: {
+        missingChecks: readiness.missingChecks,
+        staleChecks: readiness.staleChecks,
+        blockingChecks: readiness.blockingChecks,
+      },
+    });
+  }
+
   const hash = snapshotHash({
     projectId: project.id,
-    scriptId: script.id,
-    version: script.version,
-    scriptText: script.scriptText,
-    claims: script.factualClaims,
-    shots: shotRows.map((shot) => ({
-      sequenceNo: shot.sequenceNo,
-      visual: shot.visualDescription,
-      start: shot.startSeconds,
-      end: shot.endSeconds,
+    researchBriefId: readiness.integrity.brief?.id ?? null,
+    researchBriefInputHash: readiness.integrity.brief?.inputHash ?? null,
+    script: {
+      id: script.id,
+      version: script.version,
+      title: script.title,
+      hook: script.hook,
+      scriptText: script.scriptText,
+      structuredScript: script.structuredScript,
+      wordCount: script.wordCount,
+      estimatedDurationSeconds: script.estimatedDurationSeconds,
+      factualClaims: script.factualClaims,
+      originalitySummary: script.originalitySummary,
+      promptVersion: script.promptVersion,
+      inputHash: script.inputHash,
+      status: script.status,
+    },
+    claimSources: readiness.integrity.citations.map(fullCitationSnapshot),
+    shots: readiness.integrity.shots.map(fullShotSnapshot),
+    qa: readiness.latestQa.map((row) => ({
+      checkType: row.checkType,
+      result: row.result,
+      score: row.score,
+      severity: row.severity,
+      findings: row.findings,
+      modelName: row.modelName,
+      ruleVersion: row.ruleVersion,
+      inputHash: row.inputHash,
     })),
-    qa: latest.map((row) => ({ type: row.checkType, result: row.result, severity: row.severity })),
   });
 
   const approval = await insertApproval(options.system, {
@@ -751,7 +1141,58 @@ export async function decideProjectApproval(options: {
     afterState: { decision: options.request.decision, snapshotHash: hash },
   });
 
-  return { approval, snapshotHash: hash, blocking };
+  return { approval, snapshotHash: hash, blocking: readiness.blockingChecks.length > 0 };
+}
+
+export async function getProjectApprovalReadiness(
+  db: Database,
+  workspaceId: string,
+  project: ContentProjectRow,
+  script: ScriptRow,
+) {
+  if (script.contentProjectId !== project.id) {
+    throw new DomainError("CONFLICT", "Script가 현재 Project 소속이 아닙니다.");
+  }
+  const integrity = await loadIntegrityInput(db, workspaceId, project, script);
+  const qaRows = await listLatestQa(db, workspaceId, project.id, script.id);
+  const latestByType = new Map<string, (typeof qaRows)[number]>();
+  for (const row of qaRows) {
+    if (!latestByType.has(row.checkType)) latestByType.set(row.checkType, row);
+  }
+  const missingChecks = qaCheckTypes.filter((type) => !latestByType.has(type));
+  const staleChecks = qaCheckTypes.filter((type) => {
+    const row = latestByType.get(type);
+    return Boolean(row && row.inputHash !== integrity.inputHash);
+  });
+  const blockingChecks = qaCheckTypes.filter(
+    (type) => latestByType.get(type)?.severity === "blocker",
+  );
+  const latestQa = qaCheckTypes.flatMap((type) => {
+    const row = latestByType.get(type);
+    return row ? [row] : [];
+  });
+  const canApprove =
+    missingChecks.length === 0 &&
+    staleChecks.length === 0 &&
+    blockingChecks.length === 0;
+  const message =
+    missingChecks.length > 0
+      ? `QA 6종이 모두 필요합니다. 누락: ${missingChecks.join(", ")}`
+      : staleChecks.length > 0
+        ? `현재 Script·Claims·Shots·Research Brief와 QA가 일치하지 않습니다. 다시 실행하세요: ${staleChecks.join(", ")}`
+        : blockingChecks.length > 0
+          ? `Blocker QA가 있어 승인할 수 없습니다: ${blockingChecks.join(", ")}`
+          : "승인할 수 있습니다.";
+
+  return {
+    canApprove,
+    message,
+    missingChecks,
+    staleChecks,
+    blockingChecks,
+    latestQa,
+    integrity,
+  };
 }
 
 export async function loadStudioBoard(db: Database, workspaceId: string) {
@@ -770,11 +1211,20 @@ export async function loadStudioProject(db: Database, workspaceId: string, proje
     listAngles(db, workspaceId, projectId),
     listScripts(db, workspaceId, projectId),
     listApprovals(db, workspaceId, projectId),
-    getLatestResearchBrief(db, workspaceId, project.topicId),
+    pinnedBrief(db, workspaceId, project),
   ]);
   const latestScript = versions[0] ?? null;
   const shotRows = latestScript ? await listShots(db, workspaceId, latestScript.id) : [];
   const qa = latestScript ? await listLatestQa(db, workspaceId, projectId, latestScript.id) : [];
+  const approvalReadiness = latestScript
+    ? await getProjectApprovalReadiness(db, workspaceId, project, latestScript)
+    : {
+        canApprove: false,
+        message: "승인할 Script가 없습니다.",
+        missingChecks: [...qaCheckTypes],
+        staleChecks: [],
+        blockingChecks: [],
+      };
   return {
     project,
     angles,
@@ -784,6 +1234,13 @@ export async function loadStudioProject(db: Database, workspaceId: string, proje
     qa,
     approvals,
     brief,
+    approvalReadiness: {
+      canApprove: approvalReadiness.canApprove,
+      message: approvalReadiness.message,
+      missingChecks: approvalReadiness.missingChecks,
+      staleChecks: approvalReadiness.staleChecks,
+      blockingChecks: approvalReadiness.blockingChecks,
+    },
   };
 }
 

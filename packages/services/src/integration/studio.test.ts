@@ -3,8 +3,11 @@ import { sql } from "drizzle-orm";
 import {
   closePools,
   decideTopic,
+  getContentProject,
   insertNiche,
+  listScriptCitations,
   listScripts,
+  resolveBriefCitationSources,
   serviceDb,
   withUserSession,
   type Database,
@@ -19,10 +22,12 @@ import {
   generateProjectAngles,
   generateProjectScript,
   importReferenceVideo,
+  patchDraftScript,
   restoreScriptVersion,
   runProjectQa,
   selectProjectAngle,
 } from "../studio";
+import type { ResearchProvider } from "@shorts-os/providers";
 
 const serviceUrl = process.env.DATABASE_URL;
 const appUrl = process.env.DATABASE_APP_URL ?? serviceUrl;
@@ -252,7 +257,13 @@ describe("Phase 3 Demo Content Studio", () => {
           });
           generated.structured.beats[0]!.narration = "이 방법으로 수익 보장합니다";
           generated.structured.factualClaims = [
-            { claimKey: "bad", statement: "수익 보장", unverified: false, citationIndexes: [] },
+            {
+              claimKey: "bad",
+              statement: "수익 보장",
+              unverified: false,
+              citationIndexes: [],
+              sourceIds: [],
+            },
           ];
           return generated;
         },
@@ -286,6 +297,379 @@ describe("Phase 3 Demo Content Studio", () => {
         projectId,
         request: { decision: "approved", scriptId: risky.script.id },
       }),
-    ).rejects.toMatchObject({ code: "INVALID_STATE_TRANSITION" });
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+  });
+});
+
+function groundedProvider(version: 1 | 2): ResearchProvider {
+  return {
+    kind: "gemini",
+    mode: "live",
+    async researchTopic() {
+      const suffix = version === 1 ? "v1" : "v2";
+      return {
+        mode: "live",
+        modelName: "fixture-grounded",
+        promptVersion: `fixture.${suffix}`,
+        content: {
+          executiveSummary: `고정 Brief ${suffix}`,
+          keyFacts: [
+            {
+              statement: `두 출처가 지지하는 사실 ${suffix}`,
+              // 순서를 의도적으로 뒤집어 Fact 순번과 Citation 순번을 혼동하는 회귀를 잡는다.
+              citationIndexes: [1, 0],
+            },
+          ],
+          audienceInsights: [],
+          angles: [],
+          counterpoints: [],
+          unknowns: [],
+          citations: [
+            {
+              url: `https://example.com/${suffix}/alpha`,
+              title: `Alpha ${suffix}`,
+              publisher: "Example",
+              publishedAt: null,
+            },
+            {
+              url: `https://example.com/${suffix}/beta`,
+              title: `Beta ${suffix}`,
+              publisher: "Example",
+              publishedAt: null,
+            },
+          ],
+        },
+      };
+    },
+  };
+}
+
+async function createApprovedTopic(label: string) {
+  const nicheRows = await service.execute<{ id: string }>(
+    sql`select id from niches where workspace_id = ${workspaceId} limit 1`,
+  );
+  const nicheId = (nicheRows as unknown as { id: string }[])[0]!.id;
+  const topicRows = await service.execute<{ id: string }>(sql`
+    insert into topics (
+      workspace_id, niche_id, title, normalized_title, angle_hint,
+      target_country, target_language, decision, discovered_by
+    )
+    values (
+      ${workspaceId}, ${nicheId}, ${label}, ${`${label}-${suffix}`}, '검증용',
+      'KR', 'ko', 'approved', 'test'
+    )
+    returning id
+  `);
+  return (topicRows as unknown as { id: string }[])[0]!.id;
+}
+
+async function createScriptForProject(topic: string) {
+  const topicId = await createApprovedTopic(topic);
+  const briefV1 = await researchTopic({
+    db: service,
+    provider: groundedProvider(1),
+    workspaceId,
+    topicId,
+    userId: owner,
+    idempotencyKey: `grounded-v1-${topicId}`,
+    request: generateResearchSchema.parse({ forceRefresh: true }),
+  });
+  const created = await createStudioProject({
+    db: service,
+    workspaceId,
+    userId: owner,
+    request: {
+      topicId,
+      researchBriefId: briefV1.brief.id,
+      targetLanguage: "ko",
+      targetDurationSeconds: 45,
+    },
+  });
+  const angleResult = await generateProjectAngles({
+    db: service,
+    system: service,
+    provider: new MockContentStudioProvider(),
+    workspaceId,
+    userId: owner,
+    projectId: created.project.id,
+    idempotencyKey: `integrity-angle-${created.project.id}`,
+  });
+  if (!("angles" in angleResult) || !angleResult.angles) throw new Error("angles missing");
+  await selectProjectAngle({
+    db: service,
+    workspaceId,
+    projectId: created.project.id,
+    angleId: angleResult.angles[0]!.id,
+  });
+  const scriptResult = await generateProjectScript({
+    db: service,
+    system: service,
+    provider: new MockContentStudioProvider(),
+    workspaceId,
+    userId: owner,
+    projectId: created.project.id,
+    idempotencyKey: `integrity-script-${created.project.id}`,
+  });
+  if (!("script" in scriptResult) || !scriptResult.script) throw new Error("script missing");
+  return {
+    topicId,
+    briefV1: briefV1.brief,
+    project: created.project,
+    script: scriptResult.script,
+    claims: scriptResult.claims,
+  };
+}
+
+describe("Phase 3 승인 무결성", () => {
+  it("Project는 선택한 Brief v1에 고정되고 Citation index/source ID를 그대로 보존한다", async () => {
+    const fixture = await createScriptForProject("Brief 고정 및 Citation");
+    const briefV2 = await researchTopic({
+      db: service,
+      provider: groundedProvider(2),
+      workspaceId,
+      topicId: fixture.topicId,
+      userId: owner,
+      idempotencyKey: `grounded-v2-${fixture.topicId}`,
+      request: generateResearchSchema.parse({ forceRefresh: true }),
+    });
+    expect(briefV2.brief.version).toBe(2);
+
+    const persistedProject = await getContentProject(
+      service,
+      workspaceId,
+      fixture.project.id,
+    );
+    expect(persistedProject?.researchBriefId).toBe(fixture.briefV1.id);
+
+    // v2가 최신인 상태에서 다시 생성해도 Project에 고정된 v1만 사용해야 한다.
+    const pinnedScript = await generateProjectScript({
+      db: service,
+      system: service,
+      provider: new MockContentStudioProvider(),
+      workspaceId,
+      userId: owner,
+      projectId: fixture.project.id,
+      idempotencyKey: `pinned-script-${fixture.project.id}`,
+    });
+    if (!("script" in pinnedScript) || !pinnedScript.script) {
+      throw new Error("pinned script missing");
+    }
+    const claim = pinnedScript.claims[0]!;
+    expect(claim.statement).toContain("v1");
+    expect(claim.citationIndexes).toStrictEqual([1, 0]);
+    const briefSources = await resolveBriefCitationSources(
+      service,
+      workspaceId,
+      fixture.briefV1,
+    );
+    const expectedSourceIds = [1, 0].map(
+      (index) => briefSources.find((source) => source.citationIndex === index)!.sourceId,
+    );
+    expect(claim.sourceIds).toStrictEqual(expectedSourceIds);
+
+    const mappings = await listScriptCitations(
+      service,
+      workspaceId,
+      pinnedScript.script.id,
+    );
+    expect(new Set(mappings.map((mapping) => mapping.sourceId))).toStrictEqual(
+      new Set(expectedSourceIds),
+    );
+  });
+
+  it("QA가 없거나 6종 중 일부만 있으면 승인할 수 없다", async () => {
+    const fixture = await createScriptForProject("QA 완전성");
+
+    await expect(
+      decideProjectApproval({
+        db: service,
+        system: service,
+        workspaceId,
+        userId: owner,
+        projectId: fixture.project.id,
+        request: { decision: "approved", scriptId: fixture.script.id },
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+
+    await runProjectQa({
+      db: service,
+      system: service,
+      workspaceId,
+      userId: owner,
+      projectId: fixture.project.id,
+      scriptId: fixture.script.id,
+      checks: ["fact", "policy"],
+      idempotencyKey: `partial-qa-${fixture.project.id}`,
+    });
+    await expect(
+      decideProjectApproval({
+        db: service,
+        system: service,
+        workspaceId,
+        userId: owner,
+        projectId: fixture.project.id,
+        request: { decision: "approved", scriptId: fixture.script.id },
+      }),
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      options: { details: { missingChecks: expect.arrayContaining(["originality", "duration"]) } },
+    });
+  });
+
+  it("QA 통과 후 Script 수정은 새 version이며 새 QA 전에는 승인할 수 없다", async () => {
+    const fixture = await createScriptForProject("수정 후 QA");
+    const fullChecks = [
+      "fact",
+      "originality",
+      "policy",
+      "brand",
+      "duration",
+      "caption_readability",
+    ] as const;
+    await runProjectQa({
+      db: service,
+      system: service,
+      workspaceId,
+      userId: owner,
+      projectId: fixture.project.id,
+      scriptId: fixture.script.id,
+      checks: [...fullChecks],
+      idempotencyKey: `full-qa-${fixture.project.id}`,
+    });
+    const firstApproval = await decideProjectApproval({
+      db: service,
+      system: service,
+      workspaceId,
+      userId: owner,
+      projectId: fixture.project.id,
+      request: { decision: "approved", scriptId: fixture.script.id },
+    });
+
+    const edited = await patchDraftScript({
+      db: service,
+      workspaceId,
+      userId: owner,
+      scriptId: fixture.script.id,
+      title: "수정된 제목",
+      scriptText: `${fixture.script.scriptText}\n새로운 마무리 문장`,
+    });
+    expect(edited.script.version).toBe(fixture.script.version + 1);
+    expect(edited.script.id).not.toBe(fixture.script.id);
+    expect(edited.shots.every((shot) => shot.scriptId === edited.script.id)).toBe(true);
+
+    await expect(
+      decideProjectApproval({
+        db: service,
+        system: service,
+        workspaceId,
+        userId: owner,
+        projectId: fixture.project.id,
+        request: { decision: "approved", scriptId: edited.script.id },
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+
+    await runProjectQa({
+      db: service,
+      system: service,
+      workspaceId,
+      userId: owner,
+      projectId: fixture.project.id,
+      scriptId: edited.script.id,
+      checks: [...fullChecks],
+      idempotencyKey: `edited-qa-${fixture.project.id}`,
+    });
+    const secondApproval = await decideProjectApproval({
+      db: service,
+      system: service,
+      workspaceId,
+      userId: owner,
+      projectId: fixture.project.id,
+      request: { decision: "approved", scriptId: edited.script.id },
+    });
+    expect(secondApproval.snapshotHash).not.toBe(firstApproval.snapshotHash);
+  });
+
+  it("다른 Project의 scriptId는 QA 유무와 관계없이 승인할 수 없다", async () => {
+    const first = await createScriptForProject("Project A");
+    const second = await createScriptForProject("Project B");
+    await expect(
+      decideProjectApproval({
+        db: service,
+        system: service,
+        workspaceId,
+        userId: owner,
+        projectId: second.project.id,
+        request: { decision: "approved", scriptId: first.script.id },
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+  });
+
+  it("QA 이후 Snapshot 대상 Shot이 바뀌면 stale QA로 승인을 거부하고 hash도 달라진다", async () => {
+    const fixture = await createScriptForProject("Snapshot 변경");
+    const checks = [
+      "fact",
+      "originality",
+      "policy",
+      "brand",
+      "duration",
+      "caption_readability",
+    ] as const;
+    await runProjectQa({
+      db: service,
+      system: service,
+      workspaceId,
+      userId: owner,
+      projectId: fixture.project.id,
+      scriptId: fixture.script.id,
+      checks: [...checks],
+      idempotencyKey: `snapshot-qa-1-${fixture.project.id}`,
+    });
+    const before = await decideProjectApproval({
+      db: service,
+      system: service,
+      workspaceId,
+      userId: owner,
+      projectId: fixture.project.id,
+      request: { decision: "approved", scriptId: fixture.script.id },
+    });
+
+    await service.execute(sql`
+      update shots
+      set visual_description = visual_description || ' 변경'
+      where script_id = ${fixture.script.id} and sequence_no = 1
+    `);
+    await expect(
+      decideProjectApproval({
+        db: service,
+        system: service,
+        workspaceId,
+        userId: owner,
+        projectId: fixture.project.id,
+        request: { decision: "approved", scriptId: fixture.script.id },
+      }),
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      options: { details: { staleChecks: expect.arrayContaining(["fact", "policy"]) } },
+    });
+
+    await runProjectQa({
+      db: service,
+      system: service,
+      workspaceId,
+      userId: owner,
+      projectId: fixture.project.id,
+      scriptId: fixture.script.id,
+      checks: [...checks],
+      idempotencyKey: `snapshot-qa-2-${fixture.project.id}`,
+    });
+    const after = await decideProjectApproval({
+      db: service,
+      system: service,
+      workspaceId,
+      userId: owner,
+      projectId: fixture.project.id,
+      request: { decision: "approved", scriptId: fixture.script.id },
+    });
+    expect(after.snapshotHash).not.toBe(before.snapshotHash);
   });
 });

@@ -119,6 +119,49 @@ export async function getLatestResearchBrief(
   return row ? toStored(row) : null;
 }
 
+export async function getResearchBriefById(
+  db: Database,
+  workspaceId: string,
+  briefId: string,
+): Promise<StoredBrief | null> {
+  const rows = await db
+    .select()
+    .from(researchBriefs)
+    .where(
+      and(eq(researchBriefs.workspaceId, workspaceId), eq(researchBriefs.id, briefId)),
+    )
+    .limit(1);
+  return rows[0] ? toStored(rows[0]) : null;
+}
+
+/**
+ * Brief citations의 배열 순서를 보존해 실제 source id로 해석한다.
+ * topic_sources 전체를 읽으면 다른 Brief version의 Source가 섞이므로 URL로 정확히 대조한다.
+ */
+export async function resolveBriefCitationSources(
+  db: Database,
+  workspaceId: string,
+  brief: StoredBrief,
+): Promise<Array<{ citationIndex: number; sourceId: string; url: string }>> {
+  const urls = brief.content.citations.map((citation) => citation.url);
+  if (urls.length === 0) return [];
+
+  const rows = await db
+    .select({ id: sources.id, canonicalUrl: sources.canonicalUrl })
+    .from(sources)
+    .where(and(eq(sources.workspaceId, workspaceId), inArray(sources.canonicalUrl, urls)));
+  const byUrl = new Map(
+    rows
+      .filter((row): row is { id: string; canonicalUrl: string } => row.canonicalUrl !== null)
+      .map((row) => [row.canonicalUrl, row.id]),
+  );
+
+  return urls.flatMap((url, citationIndex) => {
+    const sourceId = byUrl.get(url);
+    return sourceId ? [{ citationIndex, sourceId, url }] : [];
+  });
+}
+
 export async function listResearchBriefVersions(
   db: Database,
   workspaceId: string,

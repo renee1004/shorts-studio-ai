@@ -18,6 +18,7 @@ import {
   qaReviews,
   referenceVideos,
   researchBriefs,
+  scriptCitations,
   scripts,
   shots,
   topics,
@@ -28,6 +29,7 @@ export type DnaPatternRow = typeof dnaPatterns.$inferSelect;
 export type ContentProjectRow = typeof contentProjects.$inferSelect;
 export type ContentAngleRow = typeof contentAngles.$inferSelect;
 export type ScriptRow = typeof scripts.$inferSelect;
+export type ScriptCitationRow = typeof scriptCitations.$inferSelect;
 export type ShotRow = typeof shots.$inferSelect;
 export type QaReviewRow = typeof qaReviews.$inferSelect;
 export type ApprovalRow = typeof approvals.$inferSelect;
@@ -387,24 +389,51 @@ export async function getScript(
   return rows[0] ?? null;
 }
 
-export async function updateDraftScript(
+export async function insertScriptCitations(
+  db: Database,
+  input: {
+    workspaceId: string;
+    scriptId: string;
+    mappings: Array<{
+      sourceId: string;
+      claimKey: string;
+      quoteExcerpt?: string | null;
+      supportLevel?: "direct" | "partial" | "context";
+    }>;
+  },
+): Promise<ScriptCitationRow[]> {
+  if (input.mappings.length === 0) return [];
+  return db
+    .insert(scriptCitations)
+    .values(
+      input.mappings.map((mapping) => ({
+        workspaceId: input.workspaceId,
+        scriptId: input.scriptId,
+        sourceId: mapping.sourceId,
+        claimKey: mapping.claimKey,
+        quoteExcerpt: mapping.quoteExcerpt ?? null,
+        supportLevel: mapping.supportLevel ?? "direct",
+      })),
+    )
+    .onConflictDoNothing()
+    .returning();
+}
+
+export async function listScriptCitations(
   db: Database,
   workspaceId: string,
   scriptId: string,
-  patch: { title?: string; hook?: string; scriptText?: string; wordCount?: number; estimatedDurationSeconds?: number },
-) {
-  await db
-    .update(scripts)
-    .set({
-      ...(patch.title ? { title: patch.title } : {}),
-      ...(patch.hook ? { hook: patch.hook } : {}),
-      ...(patch.scriptText ? { scriptText: patch.scriptText } : {}),
-      ...(patch.wordCount !== undefined ? { wordCount: patch.wordCount } : {}),
-      ...(patch.estimatedDurationSeconds !== undefined
-        ? { estimatedDurationSeconds: String(patch.estimatedDurationSeconds) }
-        : {}),
-    })
-    .where(and(eq(scripts.workspaceId, workspaceId), eq(scripts.id, scriptId), eq(scripts.status, "draft")));
+): Promise<ScriptCitationRow[]> {
+  return db
+    .select()
+    .from(scriptCitations)
+    .where(
+      and(
+        eq(scriptCitations.workspaceId, workspaceId),
+        eq(scriptCitations.scriptId, scriptId),
+      ),
+    )
+    .orderBy(scriptCitations.claimKey, scriptCitations.sourceId);
 }
 
 export async function replaceShots(
@@ -453,6 +482,7 @@ export async function insertQaReviews(
     checks: QaCheckResult[];
     ruleVersion: string;
     modelName: string;
+    inputHash: string;
   },
 ): Promise<QaReviewRow[]> {
   if (input.checks.length === 0) return [];
@@ -470,6 +500,7 @@ export async function insertQaReviews(
         findings: check.findings,
         modelName: input.modelName,
         ruleVersion: input.ruleVersion,
+        inputHash: input.inputHash,
       })),
     )
     .returning();

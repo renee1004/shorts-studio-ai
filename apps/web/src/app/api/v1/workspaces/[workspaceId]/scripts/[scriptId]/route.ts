@@ -9,11 +9,17 @@ export const PATCH = route<{ workspaceId: string; scriptId: string }>(
     const context = await workspaceContext(workspaceId);
     const input = await parseBody(request, patchScriptSchema);
 
-    const script = await context.run(async ({ db, requireRole }) => {
+    const result = await context.run(async ({ db, requireRole, user }) => {
       requireRole("topic:write");
-      return patchDraftScript({ db, workspaceId, scriptId, ...input });
+      return patchDraftScript({
+        db,
+        workspaceId,
+        userId: user.id,
+        scriptId,
+        ...input,
+      });
     });
 
-    return ok({ script }, requestId);
+    return ok(result, requestId);
   },
 );

@@ -134,6 +134,8 @@ export const factualClaimSchema = z.object({
   /** 출처가 없으면 반드시 true. 화면이 미확인으로 표시한다. */
   unverified: z.boolean(),
   citationIndexes: z.array(z.number().int().min(0)).default([]),
+  /** citationIndexes를 DB sources에 해석한 결과. Provider가 만들지 않고 서비스가 채운다. */
+  sourceIds: z.array(z.string().uuid()).default([]),
 });
 export type FactualClaim = z.infer<typeof factualClaimSchema>;
 
@@ -220,9 +222,9 @@ export function normalizeFactualClaims(
     .map((claim) => {
       const validIndexes = claim.citationIndexes.filter((index) => index < citationCount);
       if (validIndexes.length > 0) {
-        return { ...claim, citationIndexes: validIndexes, unverified: false };
+        return { ...claim, citationIndexes: validIndexes, sourceIds: [], unverified: false };
       }
-      return { ...claim, citationIndexes: [], unverified: true };
+      return { ...claim, citationIndexes: [], sourceIds: [], unverified: true };
     })
     .filter((claim) => claim.unverified || claim.citationIndexes.length > 0);
 }

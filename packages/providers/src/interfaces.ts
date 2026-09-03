@@ -128,7 +128,12 @@ export type ScriptGeneratorInput = {
     promise: string;
     outline: string[];
   };
-  keyFacts: { statement: string; claimKey: string; unverified: boolean }[];
+  keyFacts: {
+    statement: string;
+    claimKey: string;
+    unverified: boolean;
+    citationIndexes: number[];
+  }[];
   citationCount: number;
 };
 

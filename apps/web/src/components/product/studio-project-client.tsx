@@ -59,6 +59,7 @@ export function StudioProjectClient({
   scripts,
   shots,
   qa,
+  approvalReadiness,
   snapshotHashes,
 }: {
   workspaceId: string;
@@ -76,6 +77,13 @@ export function StudioProjectClient({
   scripts: ScriptView[];
   shots: ShotView[];
   qa: QaView[];
+  approvalReadiness: {
+    canApprove: boolean;
+    message: string;
+    missingChecks: string[];
+    staleChecks: string[];
+    blockingChecks: string[];
+  };
   snapshotHashes: { id: string; decision: string; snapshotHash: string; decidedAt: string }[];
 }) {
   const router = useRouter();
@@ -84,7 +92,6 @@ export function StudioProjectClient({
   const latest = scripts[0] ?? null;
   const [restoreId, setRestoreId] = useState(scripts[1]?.id ?? "");
 
-  const blocking = qa.some((row) => row.severity === "blocker");
   const activeStep = useMemo(() => {
     if (project.status === "approved_to_render") return 5;
     if (qa.length > 0) return 4;
@@ -391,9 +398,9 @@ export function StudioProjectClient({
 
       <section className="rounded-2xl border border-border/70 bg-card p-5">
         <h2 className="text-sm font-bold">Reviewer 승인</h2>
-        {blocking ? (
+        {!approvalReadiness.canApprove ? (
           <p className="mt-2 text-sm text-destructive">
-            Blocker QA가 있어 승인할 수 없습니다. 대본을 고치거나 새 버전을 만드세요.
+            {approvalReadiness.message}
           </p>
         ) : (
           <p className="mt-2 text-[12px] text-muted-foreground">
@@ -402,7 +409,7 @@ export function StudioProjectClient({
         )}
         <div className="mt-3 flex flex-wrap gap-2">
           <Button
-            disabled={!canApprove || blocking || !latest}
+            disabled={!canApprove || !approvalReadiness.canApprove || !latest}
             onClick={() =>
               call(
                 `/api/v1/workspaces/${workspaceId}/projects/${projectId}/approval`,

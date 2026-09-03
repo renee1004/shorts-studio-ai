@@ -26,6 +26,7 @@ describe("factual claims", () => {
     statement: "주장",
     unverified: false,
     citationIndexes: [],
+    sourceIds: [],
     ...overrides,
   });
 
