@@ -1,5 +1,8 @@
+import { loadDotenv } from "@shorts-os/config";
 import { closePools, serviceDb } from "@shorts-os/db";
 import { seedDemoWorkspace } from "../seed";
+
+loadDotenv();
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {

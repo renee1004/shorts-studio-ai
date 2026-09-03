@@ -12,14 +12,17 @@
 로컬 PostgreSQL 16이 필요합니다. Supabase 자격증명은 없어도 됩니다.
 
 ```bash
+corepack enable && corepack prepare pnpm@10.33.3 --activate
 pnpm install
+cp .env.example .env
 cp .env.example apps/web/.env.local   # DATABASE_URL만 맞추면 됩니다
+docker compose up -d postgres         # 또는 로컬 PostgreSQL 16
 pnpm db:migrate
 pnpm db:seed
-pnpm --filter @shorts-os/web dev      # http://localhost:43117
+pnpm --filter @shorts-os/web dev      # http://localhost:43117/login
 ```
 
-`/login`에서 `Demo 워크스페이스로 들어가기`를 누르면 시드 데이터로 전체 흐름을 볼 수 있습니다.
+브라우저에서 열면 `/`가 `/login`으로 보냅니다. `Demo 워크스페이스로 들어가기`를 누르면 시드 데이터로 전체 흐름을 볼 수 있습니다. `pnpm db:migrate`와 `pnpm db:seed`는 `.env` / `apps/web/.env.local`을 자동으로 읽습니다.
 
 품질 게이트:
 

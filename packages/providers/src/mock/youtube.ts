@@ -209,7 +209,8 @@ export class MockYouTubeProvider implements YouTubeDiscoveryProvider {
     };
   }
 
-  async getQuota(): Promise<QuotaUsage> {
+  async getQuota(_workspaceId: string): Promise<QuotaUsage> {
+    void _workspaceId;
     return this.quota();
   }
 }

@@ -15,6 +15,7 @@
     "test:integration": "pnpm --filter @shorts-os/services test:integration",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "setup": "pnpm db:migrate && pnpm db:seed",
     "db:migrate": "pnpm --filter @shorts-os/db db:migrate",
     "db:seed": "pnpm --filter @shorts-os/services db:seed",
     "db:reset": "pnpm --filter @shorts-os/db db:reset",

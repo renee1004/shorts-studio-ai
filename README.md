@@ -1,77 +1,119 @@
-# 쇼츠 공장 — NotebookLM으로 무료 쇼츠 파이프라인 만들기
+# Shorts Intelligence OS
 
-리서치, 니치 선정, 채널 설계, 대본, 영상 생성까지 NotebookLM 한 곳에서 처리하는 순서를 5단계로 정리한 실행 가이드 웹앱입니다. 읽는 문서가 아니라 체크하면서 진행하는 작업판으로 만들었습니다.
+공개 시장 신호로 Shorts 주제를 점수화하고, 사람이 승인한 뒤 제작으로 넘기는 운영 도구입니다. 지금은 **Phase 0–1**까지 열려 있습니다. Niche Radar와 Topic Radar를 Demo Mode로 바로 볼 수 있습니다.
 
-## 무엇이 들어있나
+수익을 보장하는 도구가 아닙니다. 점수는 저장된 신호와 공개된 계산식만 사용하며, 빠진 값은 0으로 채우지 않습니다.
 
-- **0단계 준비물** — 무료로 시작하는 데 필요한 계정과 도구 5가지
-- **5단계 실행 가이드** — 단계마다 할 일 목록(클릭할 위치 포함), 시작 전 준비물, 완료 기준, 자주 걸리는 함정
-- **프롬프트 14개** — NotebookLM 채팅창에 그대로 붙여넣는 프롬프트. 검색과 단계별 필터, 한 번에 복사 지원
-- **자동 렌더링** — 대본 표를 붙여넣으면 9:16 미리보기와 렌더 스펙이 만들어지고, 명령 한 줄로 mp4가 나옵니다
-- **현실 점검** — 세로 쇼츠 자동 생성의 언어·플랜 제약, 유튜브 수익화 문턱, AI 양산 콘텐츠 정책 리스크
-- **진행률 저장과 기기 간 이동** — 체크 상태는 브라우저 `localStorage`에 저장되고, 짧은 코드나 링크로 다른 기기에 옮길 수 있습니다
+## 미리보기에서 로그인하는 곳
 
-5단계는 앞 단계의 결과물이 다음 단계의 입력값이 되도록 이어져 있습니다.
+브라우저에서 앱을 열면 `/`가 자동으로 **`/login`** 으로 보냅니다.
 
-1. 단일 소스 스택 만들기 — 노트북을 채널 본부로
-2. 돈 되는 주제 골라내기 — 점수표로 니치 확정
-3. 채널 설계도 프로그래밍 — 블루프린트와 30일 캘린더
-4. 성공 영상 DNA로 대본 뽑기 — 구조만 가져와 60초 대본
-5. 스튜디오에서 영상 뽑고 올리기 — 영어 경로와 한국어 경로
+1. `Demo 워크스페이스로 들어가기`를 누릅니다.
+2. 대시보드 → Niche Radar → Topic Radar 순으로 보면 됩니다.
+
+시드가 들어가 있지 않으면 로그인 후 온보딩에서 워크스페이스를 만들 수 있습니다. Demo 화면을 보려면 아래 `pnpm db:seed`를 먼저 실행하세요.
+
+Playbook(수동 NotebookLM 가이드)은 헤더의 **Playbook** 링크 또는 `/playbook`에 있습니다.
 
 ## 로컬에서 실행하기
 
-```bash
-npm install
-npm run dev
-```
+Node 20 이상과 PostgreSQL 16(`pgcrypto`, `citext`, `vector`)이 필요합니다. 외부 API Key는 Demo Mode에서 필요 없습니다.
 
-http://localhost:43117 에서 열립니다. 프로덕션 빌드는 `npm run build` 후 `npm start`입니다.
+### 1. pnpm 설치
 
-외부 API 키나 환경 변수가 없습니다. 콘텐츠는 전부 정적으로 들어있고, 진행 상태만 브라우저에 저장됩니다.
-
-## 편집 프로그램 없이 영상 만들기
-
-CapCut에는 영상을 프로그램으로 만들어주는 공개 API가 없습니다. 그래서 편집기에 시키려던 일(세로 캔버스, 구간별 자막, 내레이션 합치기, mp4 출력)을 FFmpeg로 대신합니다.
+이 저장소는 npm이 아니라 **pnpm**을 씁니다. WSL/Ubuntu에서:
 
 ```bash
-# 1. 웹 앱의 /render 화면에 4단계 대본 표를 붙여넣고 스펙 파일을 내려받습니다.
-# 2. 그 파일로 렌더링합니다. (예시 스펙으로 먼저 확인해 보세요)
-npm run render -- examples/short-spec.json
+# Node가 이미 있다면 corepack으로 설치 (권장)
+corepack enable
+corepack prepare pnpm@10.33.3 --activate
 
-# 내레이션 음성이 준비됐다면
-npm run render -- my-spec.json --audio narration.mp3 --out out/ep01.mp4
+# 또는
+npm install -g pnpm
 ```
 
-결과물은 `out/` 폴더에 세 개가 생깁니다.
+설치 후 새 터미널을 열거나, `pnpm`을 못 찾으면:
 
-- `*.mp4` — 1080×1920, 30fps, 업로드 가능한 완성본
-- `*.srt` — 유튜브에 따로 올릴 수 있는 자막 파일
-- `*.narration.txt` — 무료 TTS에 넣을 내레이션 전문 (음성 없이 렌더한 경우)
+```bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+which pnpm
+```
 
-필요한 것은 Node와 FFmpeg뿐입니다(`ffmpeg -version`으로 확인). 한국어 폰트는 처음 실행할 때 Noto Sans KR을 `.cache/fonts/`에 한 번만 내려받고, 이미 가진 폰트를 쓰려면 `--font` 옵션으로 경로를 지정하면 됩니다. `--dry-run`을 붙이면 렌더링 없이 구성만 확인합니다.
+### 2. 의존성과 환경변수
 
-## 여러 기기에서 쓰기
+```bash
+pnpm install
+cp .env.example .env
+cp .env.example apps/web/.env.local
+```
 
-리서치·기획·대본은 브라우저만 있으면 어디서든 됩니다(NotebookLM은 모바일 앱도 있습니다). 영상 렌더링은 FFmpeg가 도는 컴퓨터에서만 실행되므로, 모바일에서는 `/render`에서 스펙을 만들어 두고 컴퓨터에서 명령을 실행하는 방식이 편합니다.
+`.env`와 `apps/web/.env.local`의 `DATABASE_URL`만 본인 PostgreSQL에 맞추면 됩니다. CLI(`pnpm db:migrate`)는 두 파일을 자동으로 읽습니다. 셸에 `DATABASE_URL=...`를 따로 붙여넣을 필요는 없습니다.
 
-체크 상태는 기기마다 따로 저장됩니다. 홈 화면의 &lsquo;기기 바꿔서 이어 하기&rsquo;에서 코드를 복사해 다른 기기에 붙여넣거나, `?p=<코드>` 링크를 열면 그대로 넘어갑니다.
+### 3. PostgreSQL
 
-## 기술 스택
+Docker가 있으면:
 
-- Next.js 16 (App Router, 정적 생성) · TypeScript
-- Tailwind CSS 4 · shadcn/ui
-- 진행 상태 관리는 `useSyncExternalStore` 기반 `localStorage` 스토어 (`src/lib/progress.tsx`)
+```bash
+docker compose up -d postgres
+```
 
-## 콘텐츠 수정하기
+직접 설치한 PostgreSQL을 쓰면 데이터베이스만 만들면 됩니다.
 
-가이드 문구, 할 일, 프롬프트는 모두 `src/lib/content.ts` 한 파일에 있습니다. `steps` 배열의 항목을 고치면 홈 화면, 단계 페이지, 프롬프트 모음, 진행률 계산에 함께 반영됩니다.
+```bash
+sudo -u postgres createdb shorts_os
+```
 
-할 일에 새 항목을 추가할 때는 `id`를 유일하게 지정하세요. 그 값이 진행률 저장 키로 쓰입니다.
+`app_user` 역할은 마이그레이션이 만듭니다. `postgresql-contrib`와 `pgvector`가 있어야 합니다.
 
-## 참고
+```bash
+# Ubuntu / WSL
+PGV=$(ls /usr/lib/postgresql | sort -n | tail -1)
+sudo apt install -y postgresql postgresql-contrib postgresql-$PGV-pgvector
+sudo service postgresql start
+```
 
-NotebookLM의 메뉴 이름과 무료 플랜 한도, 유튜브 정책은 자주 바뀝니다. 화면과 다르면 아래 원문을 기준으로 삼으세요.
+### 4. 마이그레이션, 시드, 개발 서버
 
-- [NotebookLM 도움말](https://support.google.com/notebooklm)
-- [유튜브 파트너 프로그램 자격 요건](https://support.google.com/youtube/answer/72851)
+```bash
+pnpm db:migrate
+pnpm db:seed
+pnpm --filter @shorts-os/web dev
+```
+
+http://localhost:43117 을 열면 로그인 화면이 나옵니다.
+
+## 품질 게이트
+
+```bash
+pnpm test
+pnpm test:integration   # 실제 DB 필요
+pnpm typecheck
+pnpm lint
+pnpm --filter @shorts-os/web build
+```
+
+## Phase 0–1에서 하는 일
+
+- Demo 로그인과 워크스페이스 생성 (RLS로 워크스페이스 격리)
+- Niche 등록 후 YouTube 공개 메타데이터 수집 (Demo는 Mock Provider)
+- Topic 후보 점수·신뢰도·결측 표시
+- Topic 승인 / 보류 / 제외 (단건·일괄)와 Workflow Run 기록
+- Settings에서 Provider 상태와 Phase 잠금 Feature Flag 확인
+
+아직 구현하지 않은 것: Gemini Research, Notebook 동기화, Trends/Ads API, 영상 생성, YouTube 게시. 인터페이스와 Flag만 준비되어 있습니다.
+
+## 구조
+
+```
+apps/web          Next.js UI + /api/v1
+apps/worker       Phase 4용 골격 (FFmpeg 렌더 스크립트)
+packages/config   env, Feature Flag
+packages/domain   점수·Confidence·Topic 발견
+packages/db       Drizzle 스키마, 마이그레이션, RLS
+packages/providers Provider 인터페이스 + Mock + Live YouTube
+packages/services 수집 오케스트레이션, Demo Seed
+docs/             스펙과 구현 상태
+```
+
+자세한 설계는 `docs/SHORTS_INTELLIGENCE_OS_SPEC.md`, 구현 범위는 `docs/IMPLEMENTATION_STATUS.md`를 보세요.

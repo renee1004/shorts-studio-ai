@@ -1,4 +1,7 @@
+import { loadDotenv } from "@shorts-os/config";
 import postgres from "postgres";
+
+loadDotenv();
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
