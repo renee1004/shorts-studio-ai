@@ -10,6 +10,7 @@ const navItems = [
   { href: "/", label: "전체 흐름" },
   { href: "/steps/source-stack", label: "단계별 실행", match: "/steps" },
   { href: "/prompts", label: "프롬프트 모음" },
+  { href: "/render", label: "자동 렌더링" },
 ];
 
 export function SiteHeader() {

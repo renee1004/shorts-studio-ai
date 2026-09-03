@@ -95,6 +95,23 @@ export default async function StepPage({ params }: PageProps<"/steps/[slug]">) {
             </div>
           </section>
 
+          {step.slug === "studio-render" && (
+            <section className="mt-12 rounded-2xl border border-primary/30 bg-primary/[0.07] p-5 sm:p-6">
+              <h2 className="text-balance-ko text-lg font-bold">
+                편집 프로그램 없이 영상 뽑기
+              </h2>
+              <p className="mt-2 max-w-2xl text-balance-ko text-sm leading-relaxed text-muted-foreground">
+                4단계 대본 표를 붙여넣으면 세로 미리보기와 렌더 스펙이 만들어집니다. 모바일에서
+                스펙만 만들어 두고 컴퓨터에서 명령 한 줄로 mp4를 뽑는 흐름입니다.
+              </p>
+              <div className="mt-4">
+                <LinkButton href="/render" className="font-semibold">
+                  자동 렌더링 열기
+                </LinkButton>
+              </div>
+            </section>
+          )}
+
           <section className="mt-12">
             <h2 className="text-xl font-bold sm:text-2xl">이 단계에서 쓰는 프롬프트</h2>
             <p className="mt-2 text-balance-ko text-sm text-muted-foreground">

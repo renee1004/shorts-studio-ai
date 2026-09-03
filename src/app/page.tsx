@@ -1,4 +1,6 @@
-import { realityChecks, steps, totalMinutes } from "@/lib/content";
+import { Suspense } from "react";
+import { deviceRoles, realityChecks, steps, totalMinutes } from "@/lib/content";
+import { ProgressTransfer } from "@/components/progress-transfer";
 import { PipelineMap } from "@/components/pipeline-map";
 import { PrepChecklist } from "@/components/prep-checklist";
 import { OverallStatus } from "@/components/overall-status";
@@ -61,6 +63,34 @@ export default function HomePage() {
 
       <section className="mt-12">
         <PrepChecklist />
+      </section>
+
+      <section className="mt-14">
+        <h2 className="text-xl font-bold sm:text-2xl">세 기기에서 나눠 쓰는 법</h2>
+        <p className="mt-2 max-w-2xl text-balance-ko text-sm text-muted-foreground">
+          인터넷만 있으면 어디서든 진행됩니다. 다만 영상 렌더링은 컴퓨터에서만 돌아가니, 기기별로
+          역할을 나눠두면 이동 중에도 작업이 끊기지 않습니다.
+        </p>
+        <ul className="mt-5 grid gap-3 md:grid-cols-3">
+          {deviceRoles.map((item) => (
+            <li key={item.device} className="rounded-2xl border border-border/70 bg-card p-5">
+              <p className="font-mono text-[11px] tracking-widest text-muted-foreground">
+                {item.device}
+              </p>
+              <h3 className="mt-2 text-[15px] font-bold">{item.role}</h3>
+              <p className="mt-2 text-balance-ko text-[13px] leading-relaxed text-muted-foreground">
+                {item.detail}
+              </p>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-3">
+          <Suspense
+            fallback={<div className="h-56 rounded-2xl border border-border/70 bg-card/60" />}
+          >
+            <ProgressTransfer />
+          </Suspense>
+        </div>
       </section>
 
       <section className="mt-14">

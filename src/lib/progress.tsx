@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from "react";
-import { allTaskIds, prepItems, steps } from "@/lib/content";
+import { allCheckableIds, allTaskIds, prepItems, steps } from "@/lib/content";
 
 const STORAGE_KEY = "shorts-factory.progress.v1";
 
@@ -77,8 +77,10 @@ const subscribeToNothing = () => () => {};
 
 type ProgressState = {
   ready: boolean;
+  doneIds: readonly string[];
   toggle: (id: string) => void;
   isDone: (id: string) => boolean;
+  replace: (ids: string[]) => void;
   reset: () => void;
   stepProgress: (slug: string) => { done: number; total: number; percent: number };
   overall: { done: number; total: number; percent: number };
@@ -105,6 +107,11 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
     commit([...next]);
   }, []);
 
+  const replace = useCallback((ids: string[]) => {
+    const known = new Set(allCheckableIds);
+    commit([...new Set(ids.filter((id) => known.has(id)))]);
+  }, []);
+
   const reset = useCallback(() => commit([]), []);
 
   const value = useMemo<ProgressState>(() => {
@@ -112,7 +119,9 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
 
     return {
       ready,
+      doneIds: store.ids,
       toggle,
+      replace,
       reset,
       isDone: (id: string) => done.has(id),
       stepProgress: (slug: string) => {
@@ -133,7 +142,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
       prepDone: prepItems.filter((item) => done.has(item.id)).length,
       storageBlocked: store.blocked,
     };
-  }, [done, ready, reset, store.blocked, toggle]);
+  }, [done, ready, replace, reset, store.blocked, store.ids, toggle]);
 
   return <ProgressContext.Provider value={value}>{children}</ProgressContext.Provider>;
 }

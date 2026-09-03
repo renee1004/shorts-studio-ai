@@ -3,7 +3,7 @@ export function SiteFooter() {
     <footer className="border-t border-border/70 py-8">
       <div className="mx-auto w-full max-w-6xl px-4 text-sm text-muted-foreground sm:px-6">
         <p className="text-balance-ko">
-          이 가이드는 NotebookLM과 유튜브 정책이 자주 바뀐다는 점을 전제로 씌었습니다. 화면에
+          이 가이드는 NotebookLM과 유튜브 정책이 자주 바뀐다는 점을 전제로 썼습니다. 화면에
           보이는 메뉴 이름이나 무료 플랜 한도가 다르면, 원문 도움말을 기준으로 삼으세요.
         </p>
         <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1">

@@ -473,15 +473,16 @@ export const steps: Step[] = [
     slug: "studio-render",
     order: 5,
     title: "스튜디오에서 영상 뽑고 올리기",
-    headline: "편집기를 배우지 않고 완성본까지 가는 두 갈래 길",
+    headline: "편집기를 배우지 않고 완성본까지 가는 세 갈래 길",
     summary:
-      "NotebookLM의 Studio 패널이 대본을 영상으로 만들어줍니다. 다만 세로 쇼츠 포맷에는 언어·플랜 제약이 있어서, 영어 경로와 한국어 경로를 나눠서 진행해야 합니다.",
+      "NotebookLM의 Studio 패널이 대본을 영상으로 만들어줍니다. 다만 세로 쇼츠 포맷에는 언어·플랜 제약이 있어서, 영어 경로와 한국어 경로를 나눠야 합니다. 한국어라면 편집기 없이 명령 한 줄로 뽑는 자동 렌더링 경로가 가장 빠릅니다.",
     minutes: 70,
     outcome: "업로드 가능한 9:16 영상 파일과, 제목·설명·해시태그가 채워진 발행 세트",
     prep: [
       "4단계에서 완성한 대본",
       "대본을 소스로 변환해 넣은 노트북",
-      "한국어 경로용 무료 편집 도구 (Vrew 또는 CapCut 무료 플랜)",
+      "자동 경로: Node와 FFmpeg가 설치된 컴퓨터 (이 프로젝트의 렌더 스크립트를 씁니다)",
+      "손으로 조립할 경우: Vrew 또는 CapCut 무료 플랜",
     ],
     tasks: [
       {
@@ -512,12 +513,25 @@ export const steps: Step[] = [
       },
       {
         id: "s5-t5",
+        title: "[자동 경로] 명령 한 줄로 9:16 영상을 뽑는다",
+        detail:
+          "CapCut에는 영상을 자동으로 만들어주는 공개 API가 없습니다. 대신 이 프로젝트의 '자동 렌더링' 화면에 4단계 대본 표를 붙여넣으면 렌더 스펙 파일이 만들어지고, 컴퓨터에서 `node scripts/render-short.mjs 스펙.json` 한 줄이면 1080×1920 mp4와 자막 파일이 나옵니다. 편집 프로그램을 열지 않고, 같은 대본이면 항상 같은 결과가 나옵니다.",
+        where: "자동 렌더링 화면 → 스펙 내려받기 → 컴퓨터에서 명령 실행",
+      },
+      {
+        id: "s5-t6",
+        title: "내레이션 음성을 붙인다",
+        detail:
+          "렌더 스크립트는 내레이션 텍스트 파일도 같이 만들어줍니다. 그 텍스트를 무료 TTS(NotebookLM 오디오 개요, CLOVA 더빙 무료 사용량, Vrew의 AI 목소리 등)에 넣어 음성을 만들고, --audio 옵션을 붙여 다시 실행하면 음성이 얹힌 완성본이 됩니다. 직접 녹음한 목소리를 쓰면 원본성까지 함께 챙깁니다.",
+      },
+      {
+        id: "s5-t7",
         title: "원본성을 더한다",
         detail:
           "AI 산출물만 올리면 대량생산 콘텐츠로 분류될 위험이 큽니다. 내 목소리 해설, 직접 캡처한 화면, 실제 사용 예시, 내 결론 한 컷 중 최소 하나를 반드시 넣으세요. 수익화 심사에서 가장 많이 걸리는 지점입니다.",
       },
       {
-        id: "s5-t6",
+        id: "s5-t8",
         title: "발행 세트를 만들고 업로드한다",
         detail:
           "'업로드 메타데이터' 프롬프트로 제목·설명·해시태그를 만들고 업로드합니다. 세로 영상이고 3분 이내면 자동으로 쇼츠로 분류됩니다. 업로드 후 48시간 뒤 유지율 그래프를 보고 다음 편에 반영하세요.",
@@ -573,6 +587,7 @@ Visual tone: [예: clean, high-contrast, minimal illustration]`,
     ],
     checkpoints: [
       "9:16 영상 파일이 손에 들어왔다",
+      "내레이션 음성이 자막과 어긋나지 않는다",
       "소리를 끄고 봐도 내용이 전달된다",
       "AI 산출물 외에 내 원본 요소가 최소 하나 들어갔다",
       "제목·설명·해시태그가 채워져 업로드됐다",
@@ -581,6 +596,10 @@ Visual tone: [예: clean, high-contrast, minimal illustration]`,
       {
         title: "Short 포맷의 제약을 먼저 확인하세요",
         body: "출시 시점 기준 Short는 약 60초 고정, 세로 전용, 영어 내레이션만, 만 18세 이상, 대본 편집과 타임라인 수정 불가입니다. 조정 수단은 포커스 프롬프트를 바꿔 재생성하는 것뿐입니다. 한국어 쇼츠라면 Explainer + 무료 편집기 경로가 현실적입니다.",
+      },
+      {
+        title: "CapCut 자동화는 공식 경로가 없습니다",
+        body: "CapCut의 Open Platform은 에디터 안에서 돌아가는 플러그인용이고, JSON을 보내면 영상을 돌려주는 렌더링 API는 공개되지 않았습니다. 프로젝트 파일(draft_content.json)을 코드로 만드는 우회법이 있지만 앱 업데이트마다 깨지고 데스크톱 한 대에 묶입니다. 자동화가 목적이라면 이 프로젝트의 FFmpeg 렌더 경로가 안전합니다.",
       },
       {
         title: "같은 템플릿으로 양산하면 수익화가 막힙니다",
@@ -652,6 +671,27 @@ export const realityChecks: { title: string; body: string; tone: "warn" | "info"
   },
 ];
 
+export const deviceRoles: { device: string; role: string; detail: string }[] = [
+  {
+    device: "모바일",
+    role: "리서치와 검수",
+    detail:
+      "NotebookLM 앱에서 프롬프트를 실행하고 소스를 담습니다. 자동 렌더링 화면에서 자막이 넘어가는 속도를 눈으로 확인하고, 완성된 영상은 유튜브 앱으로 업로드합니다. 영상 렌더링만 못 합니다.",
+  },
+  {
+    device: "노트북·데스크톱",
+    role: "대본 확정과 렌더링",
+    detail:
+      "대본을 다듬고 렌더 스펙을 내려받아 명령 한 줄로 mp4를 만듭니다. FFmpeg와 Node만 있으면 되고, 어느 컴퓨터에서 실행해도 같은 결과가 나옵니다.",
+  },
+  {
+    device: "기기 사이 이동",
+    role: "진행 상황 코드",
+    detail:
+      "체크 상태는 기기마다 따로 저장되므로, 아래 코드나 링크로 옮깁니다. 노트북과 소스는 구글 계정에 붙어 있어서 로그인만 하면 그대로 이어집니다.",
+  },
+];
+
 export const allPrompts: (Prompt & { stepSlug: string; stepTitle: string; stepOrder: number })[] =
   steps.flatMap((step) =>
     step.prompts.map((prompt) => ({
@@ -663,6 +703,15 @@ export const allPrompts: (Prompt & { stepSlug: string; stepTitle: string; stepOr
   );
 
 export const allTaskIds: string[] = steps.flatMap((step) => step.tasks.map((task) => task.id));
+
+/**
+ * 진행 상황 코드의 비트 순서입니다. 항목을 지우거나 순서를 바꾸면 기존 코드가 어긋나므로,
+ * 새 항목은 항상 끝에 추가하세요.
+ */
+export const allCheckableIds: string[] = [
+  ...prepItems.map((item) => item.id),
+  ...allTaskIds,
+];
 
 export function getStep(slug: string): Step | undefined {
   return steps.find((step) => step.slug === slug);
