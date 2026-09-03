@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import { z } from "zod";
 import { DomainError } from "@shorts-os/domain";
 import { ok, parseBody, route } from "@/server/api";
@@ -25,24 +24,38 @@ export const POST = route(async ({ request, requestId }) => {
 
   const input = await parseBody(request, bodySchema);
   const token = authProvider().issueSession({ id: input.userId, email: input.email });
-  const proto =
-    request.headers.get("x-forwarded-proto") ?? new URL(request.url).protocol.replace(":", "");
-
-  const store = await cookies();
-  store.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    // HTTP 프리뷰(localhost)에서는 Secure 쿠키가 저장되지 않는다.
-    secure: proto === "https",
-    path: "/",
-    maxAge: 30 * 86_400,
-  });
-
-  return ok({ userId: input.userId, email: input.email }, requestId);
+  const response = ok({ userId: input.userId, email: input.email }, requestId);
+  response.headers.append("Set-Cookie", serializeSessionCookie(token, isHttps(request)));
+  return response;
 });
 
-export const DELETE = route(async ({ requestId }) => {
-  const store = await cookies();
-  store.delete(SESSION_COOKIE);
-  return ok({ signedOut: true }, requestId);
+export const DELETE = route(async ({ request, requestId }) => {
+  const response = ok({ signedOut: true }, requestId);
+  response.headers.append("Set-Cookie", expireSessionCookie(isHttps(request)));
+  return response;
 });
+
+function isHttps(request: Request): boolean {
+  const forwarded = request.headers.get("x-forwarded-proto");
+  if (forwarded) return forwarded.split(",")[0]?.trim() === "https";
+  return new URL(request.url).protocol === "https:";
+}
+
+/** cookies().set()는 production에서 Secure를 강제해 HTTP 프리뷰 로그인이 깨진다. */
+function serializeSessionCookie(token: string, secure: boolean): string {
+  const parts = [
+    `${SESSION_COOKIE}=${token}`,
+    "Path=/",
+    `Max-Age=${30 * 86_400}`,
+    "HttpOnly",
+    "SameSite=Lax",
+  ];
+  if (secure) parts.push("Secure");
+  return parts.join("; ");
+}
+
+function expireSessionCookie(secure: boolean): string {
+  const parts = [`${SESSION_COOKIE}=`, "Path=/", "Max-Age=0", "HttpOnly", "SameSite=Lax"];
+  if (secure) parts.push("Secure");
+  return parts.join("; ");
+}
