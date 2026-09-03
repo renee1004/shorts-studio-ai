@@ -59,6 +59,8 @@ pnpm --filter @shorts-os/web build
 | Provider 429/5xx Mock 테스트 통과 | 완료 | `mock/youtube.test.ts` 9개 (429·503·401·쿼터 초과) |
 | Top Topic을 승인할 수 있음 | 완료 | Topic Radar 결정 버튼 + 상태 전이 검증 + Audit Log |
 
+Phase 1 메뉴는 Dashboard, Niche Radar, Topic Radar, Runs, Settings입니다. 사이드바는 lg 이상에서만 보이므로 작은 화면에는 같은 목록을 가로 스크롤 상단 바로 제공합니다(`components/product/mobile-nav.tsx`).
+
 구현된 항목: Niche CRUD, Score Config 버전 관리, YouTube Data Provider(쿼터 회계·캐시·배치·타임아웃·재시도), Metric Snapshot, View Velocity와 Breakout 판단, Topic 클러스터, 설명형 Score와 Confidence, Niche·Topic 화면, Topic 승인·보류·제외(단건·최대 50건 일괄), Workflow Run 화면.
 
 ---

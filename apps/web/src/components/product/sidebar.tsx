@@ -1,28 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-
-/**
- * 스펙 8.1의 11개 메뉴.
- * Phase에 포함되지 않은 메뉴는 가짜 화면 대신 활성화 조건을 보여준다.
- */
-const menu = [
-  { label: "Dashboard", href: "/dashboard", phase: 0 },
-  { label: "Niche Radar", href: "/radar/niches", phase: 1 },
-  { label: "Topic Radar", href: "/radar/topics", phase: 1 },
-  { label: "Research", href: "/research", phase: 2 },
-  { label: "DNA Library", href: "/dna", phase: 3 },
-  { label: "Content Studio", href: "/studio", phase: 3 },
-  { label: "Video Factory", href: "/factory", phase: 4 },
-  { label: "Publish Queue", href: "/publish", phase: 5 },
-  { label: "Analytics", href: "/analytics", phase: 6 },
-  { label: "Learning", href: "/learning", phase: 6 },
-  { label: "Settings", href: "/settings", phase: 0 },
-] as const;
-
-const CURRENT_PHASE = 1;
+import { CURRENT_PHASE, isNavItemActive, navItems } from "@/components/product/nav-items";
+import { SignOutButton } from "@/components/product/sign-out-button";
 
 export function ProductSidebar({
   workspaces,
@@ -36,7 +18,6 @@ export function ProductSidebar({
   userEmail: string;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const active = workspaces.find((workspace) => workspace.id === activeWorkspaceId);
 
   return (
@@ -51,9 +32,9 @@ export function ProductSidebar({
 
       <nav className="flex-1 overflow-y-auto p-2">
         <ul className="space-y-0.5">
-          {menu.map((item) => {
+          {navItems.map((item) => {
             const locked = item.phase > CURRENT_PHASE;
-            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const isActive = isNavItemActive(pathname, item.href);
 
             if (locked) {
               return (
@@ -91,17 +72,7 @@ export function ProductSidebar({
 
       <div className="border-t border-border/70 px-4 py-3">
         <p className="truncate text-[11px] text-muted-foreground">{userEmail}</p>
-        <button
-          type="button"
-          onClick={async () => {
-            await fetch("/api/v1/auth/demo-session", { method: "DELETE" });
-            router.push("/login");
-            router.refresh();
-          }}
-          className="mt-1.5 text-[11px] text-muted-foreground underline decoration-border underline-offset-4 hover:text-foreground"
-        >
-          세션 종료
-        </button>
+        <SignOutButton className="mt-1.5 block" />
       </div>
     </aside>
   );

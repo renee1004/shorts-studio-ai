@@ -4,6 +4,8 @@ import { currentUser } from "@/server/auth";
 import { listMyWorkspaces } from "@/server/context";
 import { env } from "@/server/env";
 import { ProductSidebar } from "@/components/product/sidebar";
+import { ProductMobileNav } from "@/components/product/mobile-nav";
+import { SignOutButton } from "@/components/product/sign-out-button";
 
 export default async function ProductLayout({ children }: { children: React.ReactNode }) {
   const user = await currentUser();
@@ -34,13 +36,17 @@ export default async function ProductLayout({ children }: { children: React.Reac
               {active.role} · {active.timezone} · {env().APP_MODE === "demo" ? "Demo Mode" : "Live"}
             </p>
           </div>
-          <Link
-            href="/playbook"
-            className="shrink-0 text-xs text-muted-foreground underline decoration-border underline-offset-4 hover:text-foreground"
-          >
-            Playbook
-          </Link>
+          <div className="flex shrink-0 items-center gap-4">
+            <Link
+              href="/playbook"
+              className="text-xs text-muted-foreground underline decoration-border underline-offset-4 hover:text-foreground"
+            >
+              Playbook
+            </Link>
+            <SignOutButton className="lg:hidden" />
+          </div>
         </header>
+        <ProductMobileNav />
         <div className="px-4 py-6 sm:px-6">{children}</div>
       </div>
     </div>
