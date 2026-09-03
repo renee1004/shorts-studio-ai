@@ -12,6 +12,38 @@ export type MigrationTarget = "local" | "supabase";
 
 export type MigrationResult = { file: string; applied: boolean; skippedReason?: string };
 
+/** 스펙 6.3이 요구하는 확장. 없으면 SQL 오류 대신 무엇을 설치해야 하는지 알려준다. */
+const requiredExtensions = ["pgcrypto", "citext", "vector"] as const;
+
+export class MissingExtensionError extends Error {
+  constructor(readonly missing: string[]) {
+    super(
+      [
+        `PostgreSQL 확장이 없어 마이그레이션을 시작할 수 없습니다: ${missing.join(", ")}`,
+        "",
+        "설치 방법 (Ubuntu/WSL):",
+        "  PGV=$(ls /usr/lib/postgresql | sort -n | tail -1)",
+        "  sudo apt install -y postgresql-contrib postgresql-$PGV-pgvector",
+        "  sudo service postgresql restart",
+        "",
+        "Supabase를 쓰신다면 이 확장들이 이미 준비되어 있습니다.",
+      ].join("\n"),
+    );
+    this.name = "MissingExtensionError";
+  }
+}
+
+async function assertRequiredExtensions(
+  client: ReturnType<typeof postgres>,
+): Promise<void> {
+  const rows = await client<{ name: string }[]>`
+    select name from pg_available_extensions where name in ${client(requiredExtensions)}
+  `;
+  const available = new Set(rows.map((row) => row.name));
+  const missing = requiredExtensions.filter((name) => !available.has(name));
+  if (missing.length > 0) throw new MissingExtensionError(missing);
+}
+
 export async function runMigrations(options: {
   connectionString: string;
   target?: MigrationTarget;
@@ -22,6 +54,8 @@ export async function runMigrations(options: {
   const sqlClient = postgres(options.connectionString, { max: 1, onnotice: () => {} });
 
   try {
+    await assertRequiredExtensions(sqlClient);
+
     await sqlClient.unsafe(`
       create table if not exists schema_migrations (
         file text primary key,
