@@ -120,7 +120,26 @@ Domain은 `@shorts-os/contracts`만 알고 DB나 Provider를 모릅니다. Provi
 - 단위 테스트 57개: 점수 계산 10, Velocity 14, Topic 발견 6, Provider 9, Flag·env 9, Contract 8, dotenv 로더 1
 - 통합 테스트 6개(실제 PostgreSQL): 워크스페이스 격리 4, Idempotency 1, 수집→점수→승인 수직 슬라이스 1
 - 브라우저 검증 25개(프로덕션 빌드, Chrome): 로그인, 대시보드 KPI, Niche 목록·Provider 상태, 수집 실행, Topic 목록·Score Breakdown·결측 N/A, 필터, 승인, Run 기록, Settings 잠금 표시, 403 차단, Idempotency-Key 필수, 모바일 레이아웃. 콘솔·서버 오류 0건
-- 시드 결과: 워크스페이스 1, Niche 3, Topic 17, 참고 영상 105편, Niche 스냅샷 3. Score/Confidence 세 프로파일(제작 후보·데이터 보강·보류)이 데이터에서 자연히 발생
+### 공식 Seed 기준값
+
+`pnpm db:reset && pnpm db:migrate && pnpm db:seed` 직후의 값입니다. `SEED_NOW`(2026-09-03T00:00:00Z)와 Mock 시드(20260903)를 고정했으므로 환경이 달라도 같은 수가 나와야 합니다.
+
+| 항목 | 건수 |
+|---|---|
+| workspaces | 1 |
+| niches | 3 (AI Automation 75편, Career AI 24편, Productivity 6편) |
+| topics | 17 (8 + 8 + 1) |
+| reference_videos | 105 |
+| video_metric_snapshots | 105 |
+| topic_score_snapshots | 17 |
+| niche_metric_snapshots | 3 |
+| workflow_runs | 3 (전부 succeeded) |
+| Decision Band | PRODUCE_CANDIDATE 3, RESEARCH_MORE 1, WATCH 11, SKIP_CANDIDATE 2 |
+| topics.decision | new 17 (승인 이력 없음) |
+
+`pnpm db:seed`를 다시 실행해도 위 수치는 변하지 않습니다. 워크스페이스는 slug로, Niche는 slug로 찾고, 수집은 `seed-<slug>-<날짜>` Idempotency Key로 기존 Run을 재사용합니다. 두 번째 실행부터는 각 Niche가 `이미 시드되어 있어 건너뛰었습니다`로 표시됩니다.
+
+Dashboard 집계와 Topic Radar 목록은 같은 `listTopics(limit=100)` 결과를 씁니다. 기준값에서 Dashboard는 제작 후보 3, 승인 대기 17, 데이터 보강 1, 실패 Run 0을 표시하고 Topic Radar 배지는 제작 후보 3, 데이터 보강 1, 관찰 11, 보류 2로 합계 17이 됩니다.
 
 ---
 

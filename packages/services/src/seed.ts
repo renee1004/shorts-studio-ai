@@ -48,7 +48,7 @@ const demoNiches = [
 export type SeedResult = {
   workspaceId: string;
   userId: string;
-  niches: { id: string; name: string; topicsCreated: number; videos: number }[];
+  niches: { id: string; name: string; topicsCreated: number; videos: number; reused: boolean }[];
 };
 
 /**
@@ -145,6 +145,7 @@ export async function seedDemoWorkspace(db: Database): Promise<SeedResult> {
       name: definition.name,
       topicsCreated: collected.topicsCreated,
       videos: collected.videosCollected,
+      reused: collected.reused,
     });
   }
 
