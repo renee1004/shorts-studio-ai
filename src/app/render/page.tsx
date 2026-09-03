@@ -23,7 +23,15 @@ export default function RenderPage() {
           붙여넣고 스펙만 만들어 두었다가, 컴퓨터에서 명령 한 줄로 영상을 뽑는 흐름을 염두에 두고
           만들었습니다.
         </p>
-        <div className="mt-6 flex flex-wrap gap-2">
+        <div className="mt-6 flex flex-wrap items-center gap-2">
+          <a
+            href="/sample-short.mp4"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-[13px] font-semibold text-primary-foreground transition-colors hover:bg-primary/80"
+          >
+            예시 결과물 보기 (50초)
+          </a>
           <LinkButton href="/steps/script-dna" variant="outline" size="sm">
             대본이 없다면 4단계로
           </LinkButton>
@@ -31,6 +39,10 @@ export default function RenderPage() {
             5단계 설명 보기
           </LinkButton>
         </div>
+        <p className="mt-3 text-[13px] text-muted-foreground">
+          아래 예시 대본을 그대로 렌더링한 파일입니다. 자막 크기와 화면 여백이 실제로 어떻게
+          나오는지 먼저 확인해 보세요.
+        </p>
       </header>
 
       <div className="mt-10">
