@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { listNiches, listTopics, listWorkflowRuns } from "@shorts-os/db";
 import { topicListQuerySchema } from "@shorts-os/contracts";
-import { listMyWorkspaces, workspaceContext } from "@/server/context";
+import { workspaceContext } from "@/server/context";
+import { requireProductWorkspace } from "@/server/page-context";
 import { ScoreBadge } from "@/components/product/score-badge";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const workspaces = await listMyWorkspaces();
-  const workspace = workspaces[0]!;
+  const workspace = await requireProductWorkspace();
   const context = await workspaceContext(workspace.id);
 
   const { niches, topics, runs } = await context.run(async ({ db }) => ({

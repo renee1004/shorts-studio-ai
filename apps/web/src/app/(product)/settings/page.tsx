@@ -1,13 +1,13 @@
 import { getActiveScoreConfig, getWorkspaceSettings } from "@shorts-os/db";
 import { parseThresholds, parseWeights } from "@shorts-os/domain";
-import { listMyWorkspaces, workspaceContext } from "@/server/context";
+import { workspaceContext } from "@/server/context";
+import { requireProductWorkspace } from "@/server/page-context";
 import { env, flagsFor } from "@/server/env";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const workspaces = await listMyWorkspaces();
-  const workspace = workspaces[0]!;
+  const workspace = await requireProductWorkspace();
   const context = await workspaceContext(workspace.id);
 
   const { settings, scoreConfig } = await context.run(async ({ db }) => ({

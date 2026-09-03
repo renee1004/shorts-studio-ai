@@ -1,12 +1,12 @@
 import { listResearchOverview } from "@shorts-os/db";
-import { listMyWorkspaces, workspaceContext } from "@/server/context";
+import { workspaceContext } from "@/server/context";
+import { requireProductWorkspace } from "@/server/page-context";
 import { ResearchClient } from "@/components/product/research-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function ResearchPage() {
-  const workspaces = await listMyWorkspaces();
-  const workspace = workspaces[0]!;
+  const workspace = await requireProductWorkspace();
   const context = await workspaceContext(workspace.id);
 
   const rows = await context.run(({ db }) => listResearchOverview(db, workspace.id, 50));

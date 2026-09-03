@@ -1,5 +1,6 @@
 import { listWorkflowRuns, listWorkflowSteps } from "@shorts-os/db";
-import { listMyWorkspaces, workspaceContext } from "@/server/context";
+import { workspaceContext } from "@/server/context";
+import { requireProductWorkspace } from "@/server/page-context";
 
 export const dynamic = "force-dynamic";
 
@@ -13,8 +14,7 @@ const statusTone: Record<string, string> = {
 };
 
 export default async function RunsPage() {
-  const workspaces = await listMyWorkspaces();
-  const workspace = workspaces[0]!;
+  const workspace = await requireProductWorkspace();
   const context = await workspaceContext(workspace.id);
 
   const runs = await context.run(async ({ db }) => {

@@ -12,9 +12,8 @@ export default async function ProductLayout({ children }: { children: React.Reac
   if (!user) redirect("/login");
 
   const workspaces = await listMyWorkspaces();
-  if (workspaces.length === 0) redirect("/onboarding");
-
-  const active = workspaces[0]!;
+  const active = workspaces[0];
+  if (!active) redirect("/onboarding");
 
   return (
     <div className="flex min-h-full">

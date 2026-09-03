@@ -1,12 +1,12 @@
 import { listNiches } from "@shorts-os/db";
-import { listMyWorkspaces, workspaceContext } from "@/server/context";
+import { workspaceContext } from "@/server/context";
+import { requireProductWorkspace } from "@/server/page-context";
 import { NicheRadarClient } from "@/components/product/niche-radar-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function NicheRadarPage() {
-  const workspaces = await listMyWorkspaces();
-  const workspace = workspaces[0]!;
+  const workspace = await requireProductWorkspace();
   const context = await workspaceContext(workspace.id);
 
   const rows = await context.run(({ db }) => listNiches(db, workspace.id));
