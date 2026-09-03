@@ -472,6 +472,27 @@ export async function getTopicDetail(db: Database, workspaceId: string, topicId:
   return { topic, scores: scoreRows, videos: videoRows };
 }
 
+export async function listTopicReferenceTexts(
+  db: Database,
+  workspaceId: string,
+  topicId: string,
+): Promise<string[]> {
+  const rows = await db
+    .select({
+      title: referenceVideos.title,
+      description: referenceVideos.description,
+    })
+    .from(topicReferenceVideos)
+    .innerJoin(referenceVideos, eq(referenceVideos.id, topicReferenceVideos.referenceVideoId))
+    .where(
+      and(
+        eq(topicReferenceVideos.workspaceId, workspaceId),
+        eq(topicReferenceVideos.topicId, topicId),
+      ),
+    );
+  return rows.map((row) => `${row.title}\n${row.description ?? ""}`);
+}
+
 /** 상태 전이는 Domain이 검증한다. UI가 decision 값을 직접 덮어쓰지 않는다. (스펙 4.5) */
 export async function decideTopic(
   db: Database,

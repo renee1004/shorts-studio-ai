@@ -3,7 +3,9 @@ import {
   claimsHaveCitationOrFlag,
   normalizeFactualClaims,
   parseYouTubeVideoId,
+  QA_RULE_VERSION,
   qaCheckTypes,
+  structuredScriptSchema,
   type CreateProjectInput,
   type FactualClaim,
   type ImportReferenceVideoInput,
@@ -46,6 +48,7 @@ import {
   listScriptCitations,
   listScripts,
   listShots,
+  listTopicReferenceTexts,
   mergeReferenceMetadata,
   nextAngleVersion,
   nextScriptVersion,
@@ -83,6 +86,30 @@ function storedClaims(value: unknown): FactualClaim[] {
     citationIndexes: Array.isArray(claim.citationIndexes) ? claim.citationIndexes : [],
     sourceIds: Array.isArray(claim.sourceIds) ? claim.sourceIds : [],
   }));
+}
+
+function manualSentences(text: string): string[] {
+  return text
+    .split(/(?<=[.!?。！？])\s+|\n+/u)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+}
+
+function normalizedSentence(sentence: string): string {
+  return sentence.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function manualClaimsAdded(previousText: string, nextText: string): FactualClaim[] {
+  const previous = new Set(manualSentences(previousText).map(normalizedSentence));
+  return manualSentences(nextText)
+    .filter((sentence) => !previous.has(normalizedSentence(sentence)))
+    .map((sentence) => ({
+      claimKey: `manual_${createHash("sha256").update(sentence).digest("hex").slice(0, 16)}`,
+      statement: sentence,
+      unverified: true,
+      citationIndexes: [],
+      sourceIds: [],
+    }));
 }
 
 function shotsFromScript(structured: StructuredScript): ShotDraft[] {
@@ -149,9 +176,14 @@ function qaInputHash(input: {
   script: ScriptRow;
   shots: ShotRow[];
   citations: ScriptCitationRow[];
+  referenceVideoTextHash: string;
 }): string {
   return snapshotHash({
     projectId: input.project.id,
+    qaRuleVersion: QA_RULE_VERSION,
+    targetDurationSeconds: input.project.targetDurationSeconds,
+    brandProfileId: input.project.brandProfileId,
+    referenceVideoTextHash: input.referenceVideoTextHash,
     researchBriefId: input.brief?.id ?? null,
     researchBriefInputHash: input.brief?.inputHash ?? null,
     script: {
@@ -179,21 +211,29 @@ async function loadIntegrityInput(
   if (script.contentProjectId !== project.id) {
     throw new DomainError("CONFLICT", "Script가 현재 Project 소속이 아닙니다.");
   }
-  const [brief, shotRows, citationRows] = await Promise.all([
+  const [brief, shotRows, citationRows, referenceTexts] = await Promise.all([
     pinnedBrief(db, workspaceId, project),
     listShots(db, workspaceId, script.id),
     listScriptCitations(db, workspaceId, script.id),
+    listTopicReferenceTexts(db, workspaceId, project.topicId),
   ]);
+  const sortedReferenceTexts = [...referenceTexts].sort((left, right) =>
+    left.localeCompare(right),
+  );
+  const referenceVideoTextHash = snapshotHash(sortedReferenceTexts);
   return {
     brief,
     shots: shotRows,
     citations: citationRows,
+    referenceTexts: sortedReferenceTexts,
+    referenceVideoTextHash,
     inputHash: qaInputHash({
       project,
       brief,
       script,
       shots: shotRows,
       citations: citationRows,
+      referenceVideoTextHash,
     }),
   };
 }
@@ -819,22 +859,33 @@ export async function patchDraftScript(options: {
   );
   const oldStructured = script.structuredScript as StructuredScript;
   const originalClaims = storedClaims(script.factualClaims);
-  const requestedText = options.scriptText?.trim() ?? script.scriptText;
+  const requestedText = options.scriptText?.trim() ?? script.scriptText.trim();
+  if (!requestedText) {
+    throw new DomainError("VALIDATION_FAILED", "공백 Script는 저장할 수 없습니다.");
+  }
   const initialParagraphs = requestedText
     .split(/\n+/)
     .map((paragraph) => paragraph.trim())
     .filter(Boolean);
   const paragraphs = initialParagraphs.length > 0 ? initialParagraphs : [requestedText];
   if (options.hook) paragraphs[0] = options.hook;
+  if (paragraphs.length < 2 || paragraphs.length > 16) {
+    throw new DomainError(
+      "VALIDATION_FAILED",
+      "수동 Script는 2개 이상 16개 이하 Beat로 구성해야 합니다. 줄바꿈으로 Beat를 구분하세요.",
+    );
+  }
 
   const text = paragraphs.join("\n");
-  const claims =
-    options.scriptText === undefined
-      ? originalClaims
-      : originalClaims.filter((claim) => text.includes(claim.statement));
+  const addedClaims =
+    options.scriptText === undefined ? [] : manualClaimsAdded(script.scriptText, text);
+  const claimByKey = new Map(
+    [...originalClaims, ...addedClaims].map((claim) => [claim.claimKey, claim]),
+  );
+  const claims = [...claimByKey.values()];
   const duration = oldStructured.targetDurationSeconds;
   const segment = duration / paragraphs.length;
-  const structured: StructuredScript = {
+  const structured = structuredScriptSchema.parse({
     ...oldStructured,
     title: options.title ?? script.title,
     hook: options.hook ?? paragraphs[0] ?? script.hook,
@@ -853,7 +904,7 @@ export async function patchDraftScript(options: {
     })),
     factualClaims: claims,
     estimatedDurationSeconds: estimateSpokenSeconds(text),
-  };
+  });
   const version = await nextScriptVersion(options.db, options.workspaceId, project.id);
   const created = await insertScript(options.db, {
     workspaceId: options.workspaceId,
@@ -953,10 +1004,6 @@ export async function runProjectQa(options: {
   if (run.reused) return { runId: run.runId, reused: true as const };
 
   try {
-    const detail = await getTopicDetail(options.db, options.workspaceId, project.topicId);
-    const referenceTexts = (detail?.videos ?? []).map(
-      (row) => `${row.video.title}\n${row.video.description ?? ""}`,
-    );
     const integrity = await loadIntegrityInput(
       options.db,
       options.workspaceId,
@@ -984,7 +1031,7 @@ export async function runProjectQa(options: {
       citationCount: integrity.brief?.content.citations.length ?? 0,
       targetDurationSeconds: project.targetDurationSeconds,
       estimatedDurationSeconds: Number(script.estimatedDurationSeconds),
-      referenceTexts,
+      referenceTexts: integrity.referenceTexts,
       hasBrandProfile: Boolean(project.brandProfileId),
       checks: options.checks,
     });
@@ -1008,7 +1055,7 @@ export async function runProjectQa(options: {
       projectId: project.id,
       scriptId: script.id,
       checks,
-      ruleVersion: "content.qa.v1",
+      ruleVersion: QA_RULE_VERSION,
       modelName: "deterministic-qa",
       inputHash: integrity.inputHash,
     });
@@ -1162,7 +1209,10 @@ export async function getProjectApprovalReadiness(
   const missingChecks = qaCheckTypes.filter((type) => !latestByType.has(type));
   const staleChecks = qaCheckTypes.filter((type) => {
     const row = latestByType.get(type);
-    return Boolean(row && row.inputHash !== integrity.inputHash);
+    return Boolean(
+      row &&
+        (row.inputHash !== integrity.inputHash || row.ruleVersion !== QA_RULE_VERSION),
+    );
   });
   const blockingChecks = qaCheckTypes.filter(
     (type) => latestByType.get(type)?.severity === "blocker",

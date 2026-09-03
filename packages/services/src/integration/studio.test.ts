@@ -12,7 +12,7 @@ import {
   withUserSession,
   type Database,
 } from "@shorts-os/db";
-import { generateResearchSchema } from "@shorts-os/contracts";
+import { generateResearchSchema, structuredScriptSchema } from "@shorts-os/contracts";
 import { MockContentStudioProvider, MockResearchProvider, MockYouTubeProvider } from "@shorts-os/providers";
 import { researchTopic } from "../research-topic";
 import {
@@ -671,5 +671,169 @@ describe("Phase 3 승인 무결성", () => {
       request: { decision: "approved", scriptId: fixture.script.id },
     });
     expect(after.snapshotHash).not.toBe(before.snapshotHash);
+  });
+});
+
+describe("Phase 3.1 수동 수정과 QA hash 우회 방지", () => {
+  it("공백, 1개 Beat, 17개 Beat 수동 Script를 저장하지 않는다", async () => {
+    const fixture = await createScriptForProject("수동 Script 경계");
+    const invalidTexts = [
+      "   ",
+      "Beat 하나뿐입니다.",
+      Array.from({ length: 17 }, (_, index) => `Beat ${index + 1}`).join("\n"),
+    ];
+
+    for (const scriptText of invalidTexts) {
+      await expect(
+        patchDraftScript({
+          db: service,
+          workspaceId,
+          userId: owner,
+          scriptId: fixture.script.id,
+          scriptText,
+        }),
+      ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    }
+
+    const versions = await listScripts(service, workspaceId, fixture.project.id);
+    expect(versions).toHaveLength(1);
+  });
+
+  it("수동 추가 문장을 structuredScript와 unverified Claim, Shot에 동기화한다", async () => {
+    const fixture = await createScriptForProject("수동 Claim 보존");
+    const manualSentence = "수동으로 추가한 검토 필요 사실입니다.";
+    const edited = await patchDraftScript({
+      db: service,
+      workspaceId,
+      userId: owner,
+      scriptId: fixture.script.id,
+      scriptText: `${fixture.script.scriptText}\n${manualSentence}`,
+    });
+
+    const structured = structuredScriptSchema.parse(edited.script.structuredScript);
+    expect(structured.beats).toHaveLength(5);
+    expect(structured.beats.at(-1)?.narration).toBe(manualSentence);
+    const manualClaim = structured.factualClaims.find(
+      (claim) => claim.statement === manualSentence,
+    );
+    expect(manualClaim).toMatchObject({
+      unverified: true,
+      citationIndexes: [],
+      sourceIds: [],
+    });
+    expect(
+      edited.shots.some((shot) => shot.narration === manualSentence),
+    ).toBe(true);
+
+    const qa = await runProjectQa({
+      db: service,
+      system: service,
+      workspaceId,
+      userId: owner,
+      projectId: fixture.project.id,
+      scriptId: edited.script.id,
+      checks: ["fact"],
+      idempotencyKey: `manual-claim-qa-${fixture.project.id}`,
+    });
+    if (!("checks" in qa) || !qa.checks) throw new Error("QA missing");
+    expect(
+      qa.checks[0]?.findings.some(
+        (finding) =>
+          finding.code === "CLAIM_UNVERIFIED" &&
+          finding.evidence === manualSentence,
+      ),
+    ).toBe(true);
+  });
+
+  it("QA rule, 목표 길이, Brand, 정렬된 Reference text 변경은 QA를 stale로 만든다", async () => {
+    const fixture = await createScriptForProject("QA context hash");
+    const checks = [
+      "fact",
+      "originality",
+      "policy",
+      "brand",
+      "duration",
+      "caption_readability",
+    ] as const;
+    let run = 0;
+    const runFullQa = () =>
+      runProjectQa({
+        db: service,
+        system: service,
+        workspaceId,
+        userId: owner,
+        projectId: fixture.project.id,
+        scriptId: fixture.script.id,
+        checks: [...checks],
+        idempotencyKey: `phase31-context-${fixture.project.id}-${++run}`,
+      });
+    const expectStale = () =>
+      expect(
+        decideProjectApproval({
+          db: service,
+          system: service,
+          workspaceId,
+          userId: owner,
+          projectId: fixture.project.id,
+          request: { decision: "approved", scriptId: fixture.script.id },
+        }),
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+        options: {
+          details: {
+            staleChecks: expect.arrayContaining(["fact", "originality", "policy"]),
+          },
+        },
+      });
+
+    await runFullQa();
+    await service.execute(sql`
+      update content_projects
+      set target_duration_seconds = 50
+      where id = ${fixture.project.id}
+    `);
+    await expectStale();
+
+    await runFullQa();
+    const brandRows = await service.execute<{ id: string }>(sql`
+      insert into brand_profiles (workspace_id, name)
+      values (${workspaceId}, 'Phase 3.1 Brand')
+      returning id
+    `);
+    const brandId = (brandRows as unknown as { id: string }[])[0]!.id;
+    await service.execute(sql`
+      update content_projects set brand_profile_id = ${brandId}
+      where id = ${fixture.project.id}
+    `);
+    await expectStale();
+
+    await runFullQa();
+    const videoRows = await service.execute<{ id: string }>(sql`
+      insert into reference_videos (
+        workspace_id, provider, external_video_id, external_channel_id, url, title, description
+      )
+      values (
+        ${workspaceId}, 'youtube', ${`phase31_${suffix}`}, 'phase31_channel',
+        'https://www.youtube.com/watch?v=phase31test', 'A sorted title', 'Reference body'
+      )
+      returning id
+    `);
+    const referenceVideoId = (videoRows as unknown as { id: string }[])[0]!.id;
+    await service.execute(sql`
+      insert into topic_reference_videos (
+        workspace_id, topic_id, reference_video_id, relation_type
+      )
+      values (${workspaceId}, ${fixture.topicId}, ${referenceVideoId}, 'manual')
+    `);
+    await expectStale();
+
+    await runFullQa();
+    await service.execute(sql`
+      update qa_reviews
+      set rule_version = 'content.qa.tampered'
+      where content_project_id = ${fixture.project.id}
+        and script_id = ${fixture.script.id}
+    `);
+    await expectStale();
   });
 });
