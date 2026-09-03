@@ -2,6 +2,10 @@
 node_modules/
 .pnpm-store/
 
+# 이 저장소는 pnpm만 씁니다. 실수로 npm/yarn을 돌렸을 때 커밋되지 않게 막습니다.
+package-lock.json
+yarn.lock
+
 # next
 .next/
 out/

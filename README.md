@@ -24,6 +24,14 @@ cd ~/shorts-studio-ai
 bash scripts/start-local.sh
 ```
 
+`npm install`은 쓰지 마세요. pnpm workspace라서 `package-lock.json`이 생기고 `git pull`이 막힙니다. 이미 그 상태라면:
+
+```bash
+rm -f package-lock.json
+git checkout -- package-lock.json 2>/dev/null || true
+git pull
+```
+
 이 스크립트가 pnpm 설치, `.env` 복사, PostgreSQL 확인, 마이그레이션, Demo 시드, 개발 서버를 순서대로 합니다. 끝나면 브라우저에서 http://127.0.0.1:43117/login 을 열고 **Demo 워크스페이스로 들어가기**를 누릅니다.
 
 Node 20 이상과 PostgreSQL 16(`pgcrypto`, `citext`, `vector`)이 필요합니다. 외부 API Key는 Demo Mode에서 필요 없습니다. 단계를 직접 치고 싶다면 아래를 보세요.
