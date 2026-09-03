@@ -33,7 +33,7 @@ export function PrepChecklist() {
                   checked={done}
                   disabled={!ready}
                   onCheckedChange={() => toggle(item.id)}
-                  className="mt-0.5 size-5 shrink-0 data-[state=checked]:border-success data-[state=checked]:bg-success data-[state=checked]:text-success-foreground"
+                  className="mt-0.5 size-5 shrink-0 data-checked:border-success data-checked:bg-success data-checked:text-success-foreground dark:data-checked:bg-success"
                 />
                 <div className="min-w-0">
                   <label
