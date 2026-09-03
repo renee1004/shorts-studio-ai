@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from "react";
-import { allCheckableIds, allTaskIds, prepItems, steps } from "@/lib/content";
+import { allCheckableIds, prepItems, steps } from "@/lib/content";
 
 const STORAGE_KEY = "shorts-factory.progress.v1";
 
@@ -115,7 +115,8 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
   const reset = useCallback(() => commit([]), []);
 
   const value = useMemo<ProgressState>(() => {
-    const doneTasks = allTaskIds.filter((id) => done.has(id)).length;
+    // 준비물 체크도 진행률에 포함해야 헤더 표시와 실제 체크가 어긋나지 않습니다.
+    const doneTotal = allCheckableIds.filter((id) => done.has(id)).length;
 
     return {
       ready,
@@ -135,9 +136,9 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         };
       },
       overall: {
-        done: doneTasks,
-        total: allTaskIds.length,
-        percent: Math.round((doneTasks / allTaskIds.length) * 100),
+        done: doneTotal,
+        total: allCheckableIds.length,
+        percent: Math.round((doneTotal / allCheckableIds.length) * 100),
       },
       prepDone: prepItems.filter((item) => done.has(item.id)).length,
       storageBlocked: store.blocked,
