@@ -44,6 +44,41 @@ async function assertRequiredExtensions(
   if (missing.length > 0) throw new MissingExtensionError(missing);
 }
 
+/**
+ * 역할은 데이터베이스가 아니라 클러스터에 속한다. 덤프를 복원하거나 클러스터를 바꾸면
+ * schema_migrations는 남아 있어도 app_user가 없을 수 있으므로 매번 다시 보장한다.
+ */
+async function ensureLocalAppRole(client: ReturnType<typeof postgres>): Promise<void> {
+  await client.unsafe(`
+    do $$
+    begin
+      if not exists (select 1 from pg_roles where rolname = 'authenticated') then
+        create role authenticated nologin;
+      end if;
+      if not exists (select 1 from pg_roles where rolname = 'service_role') then
+        create role service_role nologin bypassrls;
+      end if;
+      if not exists (select 1 from pg_roles where rolname = 'app_user') then
+        create role app_user login password 'app_user';
+      end if;
+    end;
+    $$;
+
+    grant authenticated to app_user;
+  `);
+}
+
+/** 역할을 새로 만든 경우 기존 테이블 권한이 비어 있으므로 함께 다시 부여한다. */
+async function ensureLocalGrants(client: ReturnType<typeof postgres>): Promise<void> {
+  await client.unsafe(`
+    grant usage on schema public, auth to authenticated, service_role;
+    grant select, insert, update, delete on all tables in schema public to authenticated;
+    grant usage, select on all sequences in schema public to authenticated;
+    grant execute on all functions in schema public to authenticated;
+    grant execute on all functions in schema auth to authenticated;
+  `);
+}
+
 export async function runMigrations(options: {
   connectionString: string;
   target?: MigrationTarget;
@@ -55,6 +90,7 @@ export async function runMigrations(options: {
 
   try {
     await assertRequiredExtensions(sqlClient);
+    if (target === "local") await ensureLocalAppRole(sqlClient);
 
     await sqlClient.unsafe(`
       create table if not exists schema_migrations (
@@ -88,6 +124,8 @@ export async function runMigrations(options: {
       });
       results.push({ file, applied: true });
     }
+
+    if (target === "local") await ensureLocalGrants(sqlClient);
 
     return results;
   } finally {
