@@ -22,6 +22,8 @@ const nextConfig: NextConfig = {
   // typedRoutes는 아직 존재하지 않는 Phase 2+ 경로를 Link 타입으로 막아버려 끈다.
   // 각 Phase에서 라우트가 생기면 다시 켠다.
   typedRoutes: false,
+  // 저장소 루트에 AGENTS.md와 CLAUDE.md가 이미 있어 apps/web에 다시 만들지 않는다.
+  agentRules: false,
 };
 
 export default nextConfig;
