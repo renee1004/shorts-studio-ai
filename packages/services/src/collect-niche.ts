@@ -24,9 +24,31 @@ import {
 import type { YouTubeDiscoveryProvider } from "@shorts-os/providers";
 import { createLogger } from "@shorts-os/observability";
 
+export type QuotaUsageSnapshot = {
+  searchCallsUsed: number;
+  searchCallsLimit: number;
+  unitsUsed: number;
+  unitsLimit: number;
+  resetsAt: string;
+};
+
+/**
+ * Provider의 사용량 카운터는 프로세스 메모리에 있어 재시작하면 사라진다.
+ * 실제로 쓴 쿼터를 잃지 않으려면 DB 원장에 누적해야 한다. (스펙 6.4)
+ */
+export type QuotaLedger = {
+  read(workspaceId: string): Promise<QuotaUsageSnapshot>;
+  consume(args: {
+    workspaceId: string;
+    searchCalls: number;
+    units: number;
+  }): Promise<QuotaUsageSnapshot>;
+};
+
 export type CollectNicheOptions = {
   db: Database;
   provider: YouTubeDiscoveryProvider;
+  quotaLedger?: QuotaLedger;
   workspaceId: string;
   nicheId: string;
   userId: string;
@@ -86,7 +108,9 @@ export async function collectNicheSignals(
 
   if (run.reused) {
     logger.info({ runId: run.runId }, "동일 Idempotency Key로 기존 Run을 재사용했습니다.");
-    const quota = await options.provider.getQuota(options.workspaceId);
+    const quota = options.quotaLedger
+      ? await options.quotaLedger.read(options.workspaceId)
+      : await options.provider.getQuota(options.workspaceId);
     return {
       runId: run.runId,
       reused: true,
@@ -107,7 +131,13 @@ export async function collectNicheSignals(
 
   try {
     const collected = new Map<string, NormalizedVideo>();
-    let lastQuota = await options.provider.getQuota(options.workspaceId);
+    const providerStart = await options.provider.getQuota(options.workspaceId);
+    let lastQuota = options.quotaLedger
+      ? await options.quotaLedger.read(options.workspaceId)
+      : providerStart;
+    // Provider는 누적값을 주므로 증가분만 원장에 넘긴다.
+    let countedSearchCalls = providerStart.searchCallsUsed;
+    let countedUnits = providerStart.unitsUsed;
 
     for (const keyword of niche.seedKeywords) {
       sequence += 1;
@@ -128,7 +158,18 @@ export async function collectNicheSignals(
       });
 
       for (const video of detail.videos) collected.set(video.externalVideoId, video);
-      lastQuota = detail.quota;
+
+      if (options.quotaLedger) {
+        lastQuota = await options.quotaLedger.consume({
+          workspaceId: options.workspaceId,
+          searchCalls: Math.max(0, detail.quota.searchCallsUsed - countedSearchCalls),
+          units: Math.max(0, detail.quota.unitsUsed - countedUnits),
+        });
+      } else {
+        lastQuota = detail.quota;
+      }
+      countedSearchCalls = detail.quota.searchCallsUsed;
+      countedUnits = detail.quota.unitsUsed;
 
       await addWorkflowStep(options.db, {
         workspaceId: options.workspaceId,

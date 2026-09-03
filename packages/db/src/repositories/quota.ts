@@ -1,4 +1,5 @@
 import { and, eq, sql } from "drizzle-orm";
+import { createLogger } from "@shorts-os/observability";
 import type { Database } from "../client";
 import { integrations } from "../schema";
 
@@ -96,6 +97,12 @@ export function createQuotaLedger(input: {
           .update(integrations)
           .set({ quotaSnapshot: next, updatedAt: sql`now()` })
           .where(eq(integrations.id, row.id));
+      } else {
+        // 사용량을 저장할 곳이 없다. 조용히 넘기면 한도를 넘겨 쓰게 되므로 남긴다.
+        createLogger({ workspaceId: args.workspaceId, provider }).warn(
+          { searchCalls: args.searchCalls, units: args.units },
+          "integrations 행이 없어 쿼터 사용량을 저장하지 못했습니다.",
+        );
       }
 
       return toUsage(next, now);

@@ -1,4 +1,5 @@
 import { collectNicheSchema } from "@shorts-os/contracts";
+import { createQuotaLedger } from "@shorts-os/db";
 import { collectNicheSignals } from "@shorts-os/services";
 import { accepted, parseBody, requireIdempotencyKey, route } from "@/server/api";
 import { workspaceContext } from "@/server/context";
@@ -24,6 +25,14 @@ export const POST = route<{ workspaceId: string; nicheId: string }>(
       return collectNicheSignals({
         db: system,
         provider,
+        // 한도는 설정값이다. 실제 사용량은 재시작에도 남아야 하므로 DB 원장에 누적한다.
+        quotaLedger: createQuotaLedger({
+          db: system,
+          limits: {
+            searchCallsLimit: env().YOUTUBE_SEARCH_DAILY_LIMIT,
+            unitsLimit: env().YOUTUBE_UNITS_DAILY_LIMIT,
+          },
+        }),
         workspaceId,
         nicheId,
         userId: user.id,

@@ -186,6 +186,13 @@ describe("수집 → 점수 → 승인 수직 슬라이스", () => {
       }),
     );
 
+    // 쿼터 원장은 integrations 행에 누적한다. 없으면 저장할 곳이 없다.
+    await service.execute(sql`
+      insert into integrations (workspace_id, provider, display_name, status, capabilities, created_by)
+      values (${aliceWorkspace}, 'youtube_data', 'YouTube Data (Test)', 'connected', '{"mode":"mock"}'::jsonb, ${alice})
+      on conflict (workspace_id, provider, display_name) do nothing
+    `);
+
     const quota = createQuotaLedger({
       db: service,
       limits: { searchCallsLimit: 100, unitsLimit: 10000 },
@@ -198,6 +205,7 @@ describe("수집 → 점수 → 승인 수직 슬라이스", () => {
       collectNicheSignals({
         db: service,
         provider: new MockYouTubeProvider({ seed: 4242, now }),
+        quotaLedger: quota,
         workspaceId: aliceWorkspace,
         nicheId: niche.id,
         userId: alice,
@@ -216,7 +224,13 @@ describe("수집 → 점수 → 승인 수직 슬라이스", () => {
     expect(result.videosCollected).toBeGreaterThan(0);
     expect(result.topicsCreated).toBeGreaterThan(0);
     expect(result.skippedProviders.map((entry) => entry.provider)).toContain("google_ads");
-    void quota;
+
+    // 사용량은 Provider 메모리가 아니라 DB에 남아야 재시작 후에도 유지된다.
+    expect(result.quota.searchCallsUsed).toBe(niche.seedKeywords.length);
+    const persisted = await quota.read(aliceWorkspace);
+    expect(persisted.searchCallsUsed).toBe(result.quota.searchCallsUsed);
+    expect(persisted.unitsUsed).toBe(result.quota.unitsUsed);
+    expect(persisted.unitsUsed).toBeGreaterThan(0);
 
     const topics = await withUserSession(appUrl as string, alice, (db) =>
       listTopics(db, aliceWorkspace, topicListQuerySchema.parse({ nicheId: niche.id, limit: "50" })),

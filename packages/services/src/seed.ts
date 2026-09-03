@@ -120,11 +120,11 @@ export async function seedDemoWorkspace(db: Database): Promise<SeedResult> {
 
     const provider = new MockYouTubeProvider({ seed: 20260903, now: SEED_NOW });
     void cache;
-    void quota;
 
     const collected = await collectNicheSignals({
       db,
       provider,
+      quotaLedger: quota,
       workspaceId,
       nicheId,
       userId: DEMO_USER_ID,
