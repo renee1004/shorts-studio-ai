@@ -1,8 +1,10 @@
 import { DomainError } from "@shorts-os/domain";
 import type { FeatureFlags } from "@shorts-os/config";
 import { MockYouTubeProvider } from "./mock/youtube";
+import { MockResearchProvider } from "./mock/research";
 import { LiveYouTubeProvider, type QuotaLedger, type ResponseCache } from "./youtube/live";
-import type { ProviderKind, YouTubeDiscoveryProvider } from "./interfaces";
+import { LiveResearchProvider } from "./gemini/research";
+import type { ProviderKind, ResearchProvider, YouTubeDiscoveryProvider } from "./interfaces";
 
 export type ProviderAvailability = {
   provider: ProviderKind;
@@ -17,6 +19,8 @@ export type RegistryOptions = {
   appMode: "demo" | "live";
   flags: FeatureFlags;
   youtubeApiKey?: string | undefined;
+  geminiApiKey?: string | undefined;
+  geminiResearchModel?: string | undefined;
   quota: QuotaLedger;
   cache: ResponseCache;
   cacheTtlMinutes: number;
@@ -61,10 +65,42 @@ export class ProviderRegistry {
     });
   }
 
+  research(): ResearchProvider {
+    if (!this.options.flags.geminiResearch) {
+      throw new DomainError("FEATURE_DISABLED", "Research Brain이 꺼져 있습니다.", {
+        details: { provider: "gemini", requirement: "Settings에서 geminiResearch를 켜세요." },
+      });
+    }
+
+    if (this.options.appMode === "live") {
+      if (!this.options.geminiApiKey) {
+        throw new DomainError("PROVIDER_NOT_CONNECTED", "Gemini API Key가 없습니다.", {
+          details: { provider: "gemini", requirement: "GEMINI_API_KEY를 설정하세요." },
+        });
+      }
+      if (!this.options.geminiResearchModel) {
+        throw new DomainError("PROVIDER_NOT_CONNECTED", "Research 모델명이 없습니다.", {
+          details: { provider: "gemini", requirement: "GEMINI_RESEARCH_MODEL을 설정하세요." },
+        });
+      }
+      return new LiveResearchProvider({
+        apiKey: this.options.geminiApiKey,
+        modelName: this.options.geminiResearchModel,
+        retry: this.options.retry,
+      });
+    }
+
+    return new MockResearchProvider();
+  }
+
   /** 화면에서 Provider 상태를 그대로 보여주기 위한 목록. */
   availability(): ProviderAvailability[] {
     const flags = this.options.flags;
     const youtubeLiveReady = this.options.appMode === "live" && Boolean(this.options.youtubeApiKey);
+    const geminiLiveReady =
+      this.options.appMode === "live" &&
+      Boolean(this.options.geminiApiKey) &&
+      Boolean(this.options.geminiResearchModel);
 
     return [
       {
@@ -77,10 +113,15 @@ export class ProviderRegistry {
       },
       {
         provider: "gemini",
-        available: false,
-        mode: "disabled",
-        reason: "PHASE_2",
-        requirement: "Phase 2에서 Research Brain과 함께 활성화합니다.",
+        available: flags.geminiResearch,
+        mode: flags.geminiResearch ? (geminiLiveReady ? "live" : "mock") : "disabled",
+        ...(flags.geminiResearch ? {} : { reason: "FEATURE_DISABLED" }),
+        ...(geminiLiveReady
+          ? {}
+          : {
+              requirement:
+                "APP_MODE=live, GEMINI_API_KEY, GEMINI_RESEARCH_MODEL을 설정하면 Search Grounding으로 바뀝니다.",
+            }),
       },
       {
         provider: "notebook_enterprise",

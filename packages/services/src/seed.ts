@@ -75,6 +75,14 @@ export async function seedDemoWorkspace(db: Database): Promise<SeedResult> {
 
   if (!workspaceId) throw new Error("Demo 워크스페이스를 만들지 못했습니다.");
 
+  // Phase 2A는 스펙 14.4 기본값이 false다. Demo에서 흐름을 보려면 워크스페이스 설정으로 켠다.
+  // Live로 바꿀 때는 GEMINI_API_KEY가 없으면 Provider가 거절한다.
+  await db.execute(sql`
+    update workspace_settings
+    set feature_flags = feature_flags || '{"geminiResearch": true}'::jsonb
+    where workspace_id = ${workspaceId}
+  `);
+
   // 쿼터 회계가 붙을 자리를 만들어 둔다. Demo에서는 Mock Provider가 채운다.
   await db.execute(sql`
     insert into integrations (workspace_id, provider, display_name, status, capabilities, created_by)

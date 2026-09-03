@@ -17,7 +17,8 @@ export const navItems = [
   { label: "Settings", href: "/settings", phase: 0 },
 ] as const;
 
-export const CURRENT_PHASE = 1;
+/** Research(Phase 2A)까지 열려 있다. Notebook Sync는 아직 Phase 2B다. */
+export const CURRENT_PHASE = 2;
 
 export function isNavItemActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);

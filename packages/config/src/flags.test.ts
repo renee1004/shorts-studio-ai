@@ -29,6 +29,15 @@ describe("feature flags", () => {
     );
   });
 
+  it("Phase 2A의 geminiResearch는 워크스페이스 설정으로 켤 수 있다", () => {
+    const { flags, resolved } = resolveFeatureFlags({
+      workspaceFlags: { geminiResearch: true },
+    });
+
+    expect(flags.geminiResearch).toBe(true);
+    expect(resolved.find((flag) => flag.key === "geminiResearch")?.lockedReason).toBeUndefined();
+  });
+
   it("환경변수 재정의가 워크스페이스 설정을 덮는다", () => {
     const { flags, resolved } = resolveFeatureFlags({
       workspaceFlags: { youtubeDiscovery: true },

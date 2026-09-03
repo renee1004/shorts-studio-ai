@@ -35,6 +35,15 @@ export const runStatusEnum = pgEnum("run_status", [
   "cancelled",
 ]);
 
+export const researchStatusEnum = pgEnum("research_status", [
+  "draft",
+  "collecting",
+  "ready",
+  "needs_review",
+  "approved",
+  "failed",
+]);
+
 export const approvalDecisionEnum = pgEnum("approval_decision", [
   "approved",
   "rejected",

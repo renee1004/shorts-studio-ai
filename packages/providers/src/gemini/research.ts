@@ -1,0 +1,224 @@
+import {
+  RESEARCH_PROMPT_VERSION,
+  dropUngroundedFacts,
+  researchBriefContentSchema,
+  type Citation,
+  type ResearchBriefContent,
+} from "@shorts-os/contracts";
+import { normalizeProviderError, withRetry, withTimeout, type RetryPolicy } from "../errors";
+import type { ResearchProvider, ResearchTopicInput, ResearchTopicResult } from "../interfaces";
+
+const API_BASE = "https://generativelanguage.googleapis.com/v1beta";
+
+export type LiveResearchOptions = {
+  apiKey: string;
+  /** 모델명은 설정값이다. 코드에 고정하지 않는다. */
+  modelName: string;
+  retry: RetryPolicy;
+  fetchImpl?: typeof fetch;
+};
+
+type GeminiCandidate = {
+  content?: { parts?: { text?: string }[] };
+  groundingMetadata?: {
+    groundingChunks?: { web?: { uri?: string; title?: string; domain?: string } }[];
+  };
+};
+
+type GeminiResponse = {
+  candidates?: GeminiCandidate[];
+  promptFeedback?: { blockReason?: string };
+  error?: { message?: string; status?: string };
+};
+
+/**
+ * Gemini Search Grounding으로 Research Brief를 만든다. (Phase 2A)
+ *
+ * 모델이 만든 문장은 groundingMetadata의 실제 URL과 대조한 것만 남긴다.
+ * 인용을 만들어내지 않는 것이 이 어댑터의 유일한 불변식이다.
+ */
+export class LiveResearchProvider implements ResearchProvider {
+  readonly kind = "gemini" as const;
+  readonly mode = "live" as const;
+
+  constructor(private readonly options: LiveResearchOptions) {}
+
+  async researchTopic(input: ResearchTopicInput): Promise<ResearchTopicResult> {
+    const fetchImpl = this.options.fetchImpl ?? fetch;
+    const url = new URL(`${API_BASE}/models/${this.options.modelName}:generateContent`);
+    url.searchParams.set("key", this.options.apiKey);
+
+    const payload = {
+      contents: [{ role: "user", parts: [{ text: buildPrompt(input) }] }],
+      tools: [{ google_search: {} }],
+      generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
+    };
+
+    const body = await withRetry(this.options.retry, async () =>
+      withTimeout(this.options.retry.timeoutMs, "gemini", async (signal) => {
+        const response = await fetchImpl(url, {
+          method: "POST",
+          signal,
+          headers: { "content-type": "application/json", accept: "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const error = (await response.json().catch(() => ({}))) as GeminiResponse;
+          const retryAfter = Number(response.headers.get("retry-after") ?? "");
+          throw normalizeProviderError({
+            provider: "gemini",
+            status: response.status,
+            ...(error.error?.status ? { code: error.error.status } : {}),
+            ...(error.error?.message ? { message: error.error.message } : {}),
+            ...(Number.isFinite(retryAfter) ? { retryAfterSeconds: retryAfter } : {}),
+          });
+        }
+
+        return (await response.json()) as GeminiResponse;
+      }),
+    );
+
+    if (body.promptFeedback?.blockReason) {
+      throw normalizeProviderError({
+        provider: "gemini",
+        code: body.promptFeedback.blockReason,
+        message: `Gemini가 요청을 거절했습니다: ${body.promptFeedback.blockReason}`,
+      });
+    }
+
+    const candidate = body.candidates?.[0];
+    const text = candidate?.content?.parts?.map((part) => part.text ?? "").join("") ?? "";
+    if (text.trim().length === 0) {
+      throw normalizeProviderError({
+        provider: "gemini",
+        code: "EMPTY_RESPONSE",
+        message: "Gemini가 빈 응답을 반환했습니다.",
+      });
+    }
+
+    const grounded = groundingCitations(candidate);
+    const content = mergeCitations(parseModelJson(text), grounded);
+
+    return {
+      // 근거를 붙이지 못한 주장은 저장하지 않는다.
+      content: dropUngroundedFacts(content),
+      modelName: this.options.modelName,
+      promptVersion: RESEARCH_PROMPT_VERSION,
+      mode: "live",
+    };
+  }
+}
+
+export function buildPrompt(input: ResearchTopicInput): string {
+  return [
+    "You are a research analyst preparing a short-form video brief.",
+    "Use Google Search grounding. Every factual claim must come from a source you actually retrieved.",
+    "If you cannot ground a claim, omit it and list it under unknowns instead.",
+    "Never invent statistics, revenue figures, CPC values, or URLs.",
+    "",
+    `Topic: ${input.topicTitle}`,
+    `Niche: ${input.nicheName}`,
+    input.angleHint ? `Angle hint: ${input.angleHint}` : "",
+    `Write executiveSummary, audienceInsights, angles, counterpoints and unknowns in ${input.language}.`,
+    `Cite at most ${input.maxSources} sources.`,
+    "",
+    "Return only JSON with this shape:",
+    JSON.stringify(
+      {
+        executiveSummary: "string",
+        keyFacts: [{ statement: "string", citationIndexes: [0] }],
+        audienceInsights: ["string"],
+        angles: [{ title: "string", hook: "string", why: "string" }],
+        counterpoints: ["string"],
+        unknowns: ["string"],
+        citations: [{ url: "string", title: "string", publisher: "string|null", publishedAt: null }],
+      },
+      null,
+      2,
+    ),
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+/** 모델이 코드 펜스를 붙여도 파싱한다. 형식이 깨지면 조용히 넘기지 않고 오류로 만든다. */
+export function parseModelJson(text: string): ResearchBriefContent {
+  const withoutFence = text
+    .trim()
+    .replace(/^```(?:json)?/i, "")
+    .replace(/```$/, "")
+    .trim();
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(withoutFence);
+  } catch {
+    throw normalizeProviderError({
+      provider: "gemini",
+      code: "INVALID_JSON",
+      message: "Gemini 응답을 JSON으로 읽을 수 없습니다.",
+    });
+  }
+
+  const parsed = researchBriefContentSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw normalizeProviderError({
+      provider: "gemini",
+      code: "SCHEMA_MISMATCH",
+      message: `Gemini 응답이 Brief 형식과 다릅니다: ${parsed.error.issues[0]?.message ?? ""}`,
+    });
+  }
+
+  return parsed.data;
+}
+
+/** groundingMetadata에 실제로 들어온 URL만 인용으로 인정한다. */
+export function groundingCitations(candidate: GeminiCandidate | undefined): Citation[] {
+  const chunks = candidate?.groundingMetadata?.groundingChunks ?? [];
+  const seen = new Set<string>();
+  const citations: Citation[] = [];
+
+  for (const chunk of chunks) {
+    const uri = chunk.web?.uri;
+    if (!uri || seen.has(uri)) continue;
+    seen.add(uri);
+    citations.push({
+      url: uri,
+      title: chunk.web?.title ?? uri,
+      publisher: chunk.web?.domain ?? null,
+      publishedAt: null,
+    });
+  }
+
+  return citations;
+}
+
+/**
+ * 모델이 적어낸 citations 중 grounding에 없는 URL은 버리고,
+ * keyFacts의 인덱스를 살아남은 인용 위치로 다시 매핑한다.
+ */
+export function mergeCitations(
+  content: ResearchBriefContent,
+  grounded: Citation[],
+): ResearchBriefContent {
+  if (grounded.length === 0) {
+    return { ...content, citations: [], keyFacts: [] };
+  }
+
+  const indexByUrl = new Map(grounded.map((citation, index) => [citation.url, index]));
+
+  const keyFacts = content.keyFacts
+    .map((fact) => {
+      const remapped = fact.citationIndexes
+        .map((index) => content.citations[index]?.url)
+        .filter((url): url is string => url !== undefined)
+        .map((url) => indexByUrl.get(url))
+        .filter((index): index is number => index !== undefined);
+
+      return { statement: fact.statement, citationIndexes: [...new Set(remapped)] };
+    })
+    .filter((fact) => fact.citationIndexes.length > 0);
+
+  return { ...content, citations: grounded, keyFacts };
+}

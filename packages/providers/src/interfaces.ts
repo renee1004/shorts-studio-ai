@@ -1,3 +1,4 @@
+import type { ResearchBriefContent } from "@shorts-os/contracts";
 import type { NormalizedVideo } from "@shorts-os/domain";
 
 /**
@@ -75,18 +76,33 @@ export interface YouTubeDiscoveryProvider {
   getQuota(workspaceId: string): Promise<QuotaUsage>;
 }
 
-/** Phase 2 이후 구현. 인터페이스만 먼저 고정한다. */
+export type ResearchTopicInput = {
+  workspaceId: string;
+  topicTitle: string;
+  /** 주제가 속한 분야. 모델이 맥락을 잡는 데만 쓴다. */
+  nicheName: string;
+  angleHint: string | null;
+  language: string;
+  maxSources: number;
+};
+
+export type ResearchTopicResult = {
+  content: ResearchBriefContent;
+  modelName: string;
+  promptVersion: string;
+  /** mock은 출처를 만들어내지 않는다. 화면이 이 값을 그대로 보여준다. */
+  mode: "mock" | "live";
+};
+
+/**
+ * Research Brain. (Phase 2A)
+ * 출처를 만들어내지 않는 것이 이 인터페이스의 계약이다.
+ * 근거를 찾지 못하면 keyFacts를 비우고 unknowns에 남긴다.
+ */
 export interface ResearchProvider {
   readonly kind: "gemini";
-  researchTopic(input: {
-    workspaceId: string;
-    topicTitle: string;
-    language: string;
-  }): Promise<{
-    summary: string;
-    citations: { url: string; title: string; publishedAt: string | null }[];
-    modelName: string;
-  }>;
+  readonly mode: "mock" | "live";
+  researchTopic(input: ResearchTopicInput): Promise<ResearchTopicResult>;
 }
 
 export interface NotebookProvider {

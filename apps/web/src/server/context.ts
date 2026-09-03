@@ -67,6 +67,8 @@ export async function workspaceContext(workspaceId: string): Promise<{
     appMode: current.APP_MODE,
     flags,
     youtubeApiKey: current.YOUTUBE_API_KEY,
+    geminiApiKey: current.GEMINI_API_KEY,
+    geminiResearchModel: current.GEMINI_RESEARCH_MODEL,
     quota: createQuotaLedger({
       db: serviceDb(databaseUrl()),
       limits: {
