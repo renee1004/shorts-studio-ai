@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": "../..",
+    "types": ["node"],
+    "paths": {
+      "@shorts-os/config": ["./packages/config/src/index.ts"],
+      "@shorts-os/observability": ["./packages/observability/src/index.ts"],
+      "@shorts-os/contracts": ["./packages/contracts/src/index.ts"],
+      "@shorts-os/db": ["./packages/db/src/index.ts"],
+      "@shorts-os/domain": ["./packages/domain/src/index.ts"],
+      "@shorts-os/providers": ["./packages/providers/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "*.ts"]
+}

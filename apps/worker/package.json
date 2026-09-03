@@ -1,0 +1,25 @@
+{
+  "name": "@shorts-os/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "render": "node scripts/render-short.mjs"
+  },
+  "dependencies": {
+    "@shorts-os/config": "workspace:*",
+    "@shorts-os/db": "workspace:*",
+    "@shorts-os/domain": "workspace:*",
+    "@shorts-os/observability": "workspace:*",
+    "@shorts-os/providers": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

@@ -1,0 +1,200 @@
+{
+  "version": 3,
+  "pages404": true,
+  "appType": "app",
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "priority": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [],
+  "onMatchHeaders": [],
+  "rewrites": {
+    "beforeFiles": [],
+    "afterFiles": [],
+    "fallback": []
+  },
+  "dynamicRoutes": [
+    {
+      "page": "/api/v1/workspaces/[workspaceId]/niches",
+      "regex": "^/api/v1/workspaces/([^/]+?)/niches(?:/)?$",
+      "routeKeys": {
+        "nxtPworkspaceId": "nxtPworkspaceId"
+      },
+      "namedRegex": "^/api/v1/workspaces/(?<nxtPworkspaceId>[^/]+?)/niches(?:/)?$"
+    },
+    {
+      "page": "/api/v1/workspaces/[workspaceId]/niches/[nicheId]/collect",
+      "regex": "^/api/v1/workspaces/([^/]+?)/niches/([^/]+?)/collect(?:/)?$",
+      "routeKeys": {
+        "nxtPworkspaceId": "nxtPworkspaceId",
+        "nxtPnicheId": "nxtPnicheId"
+      },
+      "namedRegex": "^/api/v1/workspaces/(?<nxtPworkspaceId>[^/]+?)/niches/(?<nxtPnicheId>[^/]+?)/collect(?:/)?$"
+    },
+    {
+      "page": "/api/v1/workspaces/[workspaceId]/runs",
+      "regex": "^/api/v1/workspaces/([^/]+?)/runs(?:/)?$",
+      "routeKeys": {
+        "nxtPworkspaceId": "nxtPworkspaceId"
+      },
+      "namedRegex": "^/api/v1/workspaces/(?<nxtPworkspaceId>[^/]+?)/runs(?:/)?$"
+    },
+    {
+      "page": "/api/v1/workspaces/[workspaceId]/topics",
+      "regex": "^/api/v1/workspaces/([^/]+?)/topics(?:/)?$",
+      "routeKeys": {
+        "nxtPworkspaceId": "nxtPworkspaceId"
+      },
+      "namedRegex": "^/api/v1/workspaces/(?<nxtPworkspaceId>[^/]+?)/topics(?:/)?$"
+    },
+    {
+      "page": "/api/v1/workspaces/[workspaceId]/topics/bulk-decision",
+      "regex": "^/api/v1/workspaces/([^/]+?)/topics/bulk\\-decision(?:/)?$",
+      "routeKeys": {
+        "nxtPworkspaceId": "nxtPworkspaceId"
+      },
+      "namedRegex": "^/api/v1/workspaces/(?<nxtPworkspaceId>[^/]+?)/topics/bulk\\-decision(?:/)?$"
+    },
+    {
+      "page": "/api/v1/workspaces/[workspaceId]/topics/[topicId]/decision",
+      "regex": "^/api/v1/workspaces/([^/]+?)/topics/([^/]+?)/decision(?:/)?$",
+      "routeKeys": {
+        "nxtPworkspaceId": "nxtPworkspaceId",
+        "nxtPtopicId": "nxtPtopicId"
+      },
+      "namedRegex": "^/api/v1/workspaces/(?<nxtPworkspaceId>[^/]+?)/topics/(?<nxtPtopicId>[^/]+?)/decision(?:/)?$"
+    },
+    {
+      "page": "/playbook/steps/[slug]",
+      "regex": "^/playbook/steps/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPslug": "nxtPslug"
+      },
+      "namedRegex": "^/playbook/steps/(?<nxtPslug>[^/]+?)(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_global-error",
+      "regex": "^/_global\\-error(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_global\\-error(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/api/v1/auth/demo-session",
+      "regex": "^/api/v1/auth/demo\\-session(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/v1/auth/demo\\-session(?:/)?$"
+    },
+    {
+      "page": "/api/v1/workspaces",
+      "regex": "^/api/v1/workspaces(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/v1/workspaces(?:/)?$"
+    },
+    {
+      "page": "/dashboard",
+      "regex": "^/dashboard(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard(?:/)?$"
+    },
+    {
+      "page": "/favicon.ico",
+      "regex": "^/favicon\\.ico(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/favicon\\.ico(?:/)?$"
+    },
+    {
+      "page": "/login",
+      "regex": "^/login(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/login(?:/)?$"
+    },
+    {
+      "page": "/onboarding",
+      "regex": "^/onboarding(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/onboarding(?:/)?$"
+    },
+    {
+      "page": "/playbook",
+      "regex": "^/playbook(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/playbook(?:/)?$"
+    },
+    {
+      "page": "/playbook/prompts",
+      "regex": "^/playbook/prompts(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/playbook/prompts(?:/)?$"
+    },
+    {
+      "page": "/playbook/render",
+      "regex": "^/playbook/render(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/playbook/render(?:/)?$"
+    },
+    {
+      "page": "/radar/niches",
+      "regex": "^/radar/niches(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/radar/niches(?:/)?$"
+    },
+    {
+      "page": "/radar/topics",
+      "regex": "^/radar/topics(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/radar/topics(?:/)?$"
+    },
+    {
+      "page": "/runs",
+      "regex": "^/runs(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/runs(?:/)?$"
+    },
+    {
+      "page": "/settings",
+      "regex": "^/settings(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/settings(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "rsc",
+    "varyHeader": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+    "prefetchHeader": "next-router-prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSegmentHeader": "next-router-segment-prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments",
+    "clientParamParsing": false,
+    "dynamicRSCPrerender": false
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  }
+}

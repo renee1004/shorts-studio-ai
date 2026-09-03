@@ -1,0 +1,135 @@
+(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push(["object"==typeof document?document.currentScript:void 0,10514,e=>{"use strict";let t=[{slug:"source-stack",order:1,title:"단일 소스 스택 만들기",headline:"도구를 줄이고 노트북 하나를 채널 본부로",summary:"리서치·전략·대본을 각각 다른 앱에 흩어놓으면 매번 맥락을 다시 설명해야 합니다. NotebookLM 노트북을 채널의 본부로 정하고, 모든 자료를 그 안에 모으는 것부터 시작합니다.",minutes:40,outcome:"채널 하나당 노트북 3개(리서치·대본·전략)와 소스 정리 규칙이 준비된 상태",prep:["구글 계정 (무료면 충분합니다)","notebooklm.google.com 접속 확인","채널 후보 주제 한 줄 메모 (아직 확정 아니어도 됩니다)"],tasks:[{id:"s1-t1",title:"노트북을 3개로 나눠서 만든다",detail:"하나의 노트북에 전부 넣으면 답변이 뭉개집니다. ①리서치 본부(니치·트렌드 자료) ②대본 공장(성공 영상 대본) ③채널 전략(확정된 가이드라인)으로 나누세요. 이름은 '[채널명] 01 리서치'처럼 번호를 붙여 정렬되게 합니다.",where:"NotebookLM 홈 → 새로 만들기"},{id:"s1-t2",title:"소스를 5가지 방식으로 넣어본다",detail:"PDF·구글 문서·웹사이트 URL·YouTube URL·직접 붙여넣기 텍스트가 모두 소스가 됩니다. 특히 YouTube URL은 자동으로 자막(대본)을 읽어오므로 4단계의 핵심 재료가 됩니다.",where:"노트북 좌측 소스 패널 → 추가"},{id:"s1-t3",title:"소스 탐색(Discover sources)으로 웹 자료를 자동 수집한다",detail:"직접 검색해서 붙여넣지 말고, 소스 추가 창의 '소스 탐색'에 원하는 주제를 문장으로 적으면 NotebookLM이 웹에서 후보 자료를 찾아 골라 담아줍니다. 이게 무료로 쓰는 리서치 엔진입니다.",where:"소스 추가 → 소스 탐색"},{id:"s1-t4",title:"소스 위생 규칙을 정한다",detail:"최근 12개월 자료 우선, 출처가 분명한 것만, 같은 내용 중복 금지, 소스 20개 안쪽 유지. 근거가 약한 자료가 섞이면 AI 답변의 인용 자체가 오염됩니다. 쓸모 없어진 소스는 바로 삭제하세요."},{id:"s1-t5",title:"노트북에 역할(지침)을 학습시킨다",detail:"채팅창에 아래 '노트북 역할 지정' 프롬프트를 한 번 실행하고, 그 답변을 메모로 저장한 뒤 소스로 변환하세요. 이후 모든 답변이 쇼츠 기획자 톤으로 고정됩니다.",where:"채팅 → 답변 저장 → 메모를 소스로 변환"}],prompts:[{id:"p-role",title:"노트북 역할 지정",purpose:"노트북을 '쇼츠 기획 담당자'로 고정시켜 이후 답변 톤과 형식을 통일합니다.",body:`너는 지금부터 내 유튜브 쇼츠 채널의 콘텐츠 전략 담당자다.
+아래 원칙을 항상 지켜서 답한다.
+
+1. 모든 주장에는 업로드된 소스의 인용을 붙인다. 소스에 없는 내용은 "소스 없음"이라고 명확히 표시한다.
+2. 답변은 항상 실행 가능한 형태로 준다. 개념 설명보다 "무엇을 어떤 순서로 하라"를 먼저 쓴다.
+3. 쇼츠는 60초, 세로 9:16, 소리 없이 봐도 이해되는 자막이 기본 조건이다. 이 조건에 맞지 않는 아이디어는 걸러낸다.
+4. 표로 정리할 수 있는 건 표로 준다.
+5. 마지막에 항상 "다음에 내가 할 일 3가지"를 적는다.
+
+이 원칙을 이해했으면, 지금 업로드된 소스만 보고 이 노트북의 주제를 한 문장으로 정의해줘.`},{id:"p-audit",title:"소스 스택 점검",purpose:"모아둔 자료에 빈틈이 있는지, 무엇을 더 넣어야 하는지 확인합니다.",body:`업로드된 소스 전체를 점검해줘.
+
+1. 각 소스를 한 줄로 요약하고, 발행 시점이 최근인지 오래됐는지 표시해줘.
+2. 서로 내용이 겹치는 소스를 묶어서 알려줘. (지우면 되는 것)
+3. 주장끼리 충돌하는 부분이 있으면 어느 소스가 어떻게 다른지 비교해줘.
+4. 쇼츠 기획을 하려면 아직 부족한 정보가 무엇인지 5가지로 뽑고, 각각 "소스 탐색"에 넣을 검색 문장까지 만들어줘.`}],checkpoints:["노트북 3개가 생성되고 이름 규칙이 적용됐다","리서치 노트북에 신뢰할 수 있는 소스가 8개 이상 들어갔다","'노트북 역할 지정' 답변이 메모 → 소스로 저장됐다"],pitfalls:[{title:"소스를 무한정 넣지 마세요",body:"무료 플랜은 노트북당 소스 수와 하루 생성 횟수에 한도가 있습니다. 한도는 수시로 바뀌니 Studio 패널에 표시되는 남은 횟수를 기준으로 움직이세요. 자료는 많을수록 좋은 게 아니라, 겹치지 않을수록 좋습니다."},{title:"노트북 하나에 다 넣으면 답변이 흐려집니다",body:"니치 조사 자료와 남의 영상 대본이 같은 노트북에 있으면, 내 전략을 물어봤을 때 남의 영상 문장이 섞여 나옵니다. 반드시 용도별로 분리하세요."}]},{slug:"niche-mining",order:2,title:"돈 되는 주제 골라내기",headline:"감이 아니라 실제 웹 데이터로 니치를 정한다",summary:"'하고 싶은 주제'와 '수익이 붙는 주제'는 다릅니다. 소스 탐색으로 광고 단가·검색 수요·경쟁 밀도 자료를 모은 다음, 점수표로 니치를 하나만 남깁니다.",minutes:60,outcome:"점수표로 검증된 니치 1개와, 이미 터진 벤치마크 영상 5개 목록",prep:["1단계에서 만든 리서치 노트북","쇼츠 탭에서 내 관심 주제를 15분간 스크롤하며 조회수 높은 영상 링크 5개 모으기"],tasks:[{id:"s2-t1",title:"광고 단가 자료를 소스 탐색으로 수집한다",detail:"'2026년 유튜브 카테고리별 RPM/CPM 비교', '한국 유튜브 광고 단가 높은 분야', '금융·B2B·헬스 니치 수익성 분석' 같은 문장을 소스 탐색에 각각 넣어 자료를 담습니다. 카테고리마다 광고주가 지불하는 단가가 몇 배씩 차이 납니다.",where:"리서치 노트북 → 소스 탐색"},{id:"s2-t2",title:"니치 후보를 10개로 넓힌다",detail:"이 단계에서 좁히지 마세요. 아래 '니치 후보 확장' 프롬프트로 후보를 넓게 뽑아야, 점수표에서 의미 있는 비교가 됩니다."},{id:"s2-t3",title:"점수표로 후보를 계량화한다",detail:"'니치 점수표' 프롬프트를 실행합니다. 광고 단가, 쇼츠 적합성(60초 안에 완결 가능한가), 시각화 난이도, 경쟁 밀도, 내가 지속할 수 있는지를 가중치로 계산해 순위를 매깁니다."},{id:"s2-t4",title:"이미 터진 영상을 역설계한다",detail:"모아둔 조회수 높은 영상 5개의 URL을 소스로 추가하고 '성공 사례 역설계' 프롬프트를 실행합니다. 조회수가 터진 이유를 주제·후크·형식으로 분리해서 봐야 재현이 가능합니다.",where:"소스 추가 → YouTube URL"},{id:"s2-t5",title:"니치 1개를 확정하고 문서로 남긴다",detail:"1위 니치를 골라 '왜 이 니치인지' 근거를 메모로 저장하세요. 3단계에서 이 메모가 채널 설계의 입력값이 됩니다. 흔들릴 때 돌아올 기준점이 됩니다."}],prompts:[{id:"p-niche-expand",title:"니치 후보 확장",purpose:"광고 단가가 높은 영역을 기준으로 후보를 넓게 펼칩니다.",body:`업로드된 소스를 근거로, 쇼츠로 만들기 좋은 니치 후보 10개를 뽑아줘.
+
+조건:
+- 광고 단가(RPM)가 높다고 소스에 언급된 영역을 우선한다.
+- 각 후보는 "누구에게 어떤 문제를 해결해주는가"까지 한 문장으로 쓴다.
+- 너무 넓은 주제(예: 재테크)는 금지. 반드시 좁은 형태로 쓴다. (예: 30대 직장인의 연말정산 환급)
+- 후보마다 근거가 된 소스를 인용한다.
+
+표로 정리해줘. 열은: 니치 / 타겟 / 해결하는 문제 / 광고 단가 근거 / 인용 소스`},{id:"p-niche-score",title:"니치 점수표",purpose:"후보 10개를 5가지 기준으로 계량화해 1개만 남깁니다.",body:`앞에서 뽑은 니치 후보 10개를 아래 기준으로 1~5점씩 채점하고, 가중 합계로 순위를 매겨줘.
+
+채점 기준과 가중치:
+- 광고 단가 (가중치 3) : 소스에 근거가 있는가
+- 쇼츠 적합성 (가중치 3) : 60초 안에 하나의 개념이 완결되는가
+- 시각화 난이도 (가중치 2) : 촬영 없이 화면\xb7자막\xb7애니메이션만으로 표현 가능한가 (쉬울수록 높은 점수)
+- 경쟁 밀도 (가중치 2) : 이미 대형 채널이 장악했는가 (여유 있을수록 높은 점수)
+- 소재 지속성 (가중치 2) : 같은 형식으로 50편 이상 만들 수 있는가
+
+출력:
+1. 채점 표 (점수와 가중 합계)
+2. 상위 3개에 대해 각각 "이 니치의 가장 큰 위험 요소" 한 줄
+3. 최종 추천 1개와 그 이유 3줄`},{id:"p-reverse",title:"성공 사례 역설계",purpose:"조회수가 터진 영상에서 재현 가능한 패턴만 추출합니다.",body:`소스에 추가한 유튜브 영상들을 분석해줘. 감상이 아니라 재현 가능한 패턴만 원한다.
+
+각 영상별로:
+1. 첫 3초에 무엇을 보여주고 무엇을 말하는가 (후크 문장 그대로 인용)
+2. 영상 전체를 4~6개 구간으로 쪼개고 각 구간의 역할 (문제 제기 / 반전 / 근거 / 정리 등)
+3. 시청자가 끝까지 보게 만든 장치 1개
+4. 이 영상이 노린 검색\xb7추천 키워드 추정
+
+마지막에 영상 전체를 관통하는 공통 패턴을 표로 정리하고,
+"이 패턴을 내 니치에 적용하면" 이라는 제목으로 주제 10개를 제안해줘.`}],checkpoints:["니치 후보 10개의 채점 표가 만들어졌다","최종 니치 1개가 확정되고 근거가 메모로 저장됐다","벤치마크 영상 5개가 소스로 들어가 있다"],pitfalls:[{title:"'광고 단가 높은 니치' 리스트를 그대로 믿지 마세요",body:"AI가 소스에서 뽑아준 단가는 대부분 해외 기준이거나 오래된 수치입니다. 반드시 인용된 소스를 눌러 원문 발행일을 확인하고, 한국 시장 기준 자료를 따로 넣으세요."},{title:"쇼츠 조회수는 광고 단가와 직결되지 않습니다",body:"쇼츠 수익은 별도 수익 풀에서 분배되기 때문에 롱폼보다 조회수당 수익이 낮습니다. 니치를 고를 때 '이 주제로 나중에 제휴·전자책·상담을 붙일 수 있는가'까지 같이 보세요."}]},{slug:"channel-blueprint",order:3,title:"채널 설계도 프로그래밍",headline:"영상을 만들기 전에 AI에게 채널을 학습시킨다",summary:"설계도 없이 만들면 매 편마다 톤과 형식이 흔들립니다. 채널명·타겟·포맷·자막 스타일을 먼저 문서로 확정하고 그 문서를 노트북의 소스로 넣어야, 이후 모든 산출물이 같은 채널의 것처럼 나옵니다.",minutes:50,outcome:"채널 블루프린트 문서 1장 + 30일 콘텐츠 캘린더",prep:["2단계에서 확정한 니치 메모","채널 전략 노트북 (1단계에서 만든 세 번째 노트북)","무료 디자인 도구 계정 (Canva 무료 플랜 정도면 충분)"],tasks:[{id:"s3-t1",title:"니치 메모와 벤치마크 분석을 전략 노트북으로 옮긴다",detail:"2단계 결과물(니치 근거, 성공 패턴 표)을 복사해 전략 노트북의 소스로 붙여넣습니다. 원본 기사 수십 개가 아니라, 결론만 들어가야 답변이 선명해집니다.",where:"채널 전략 노트북 → 소스 추가 → 텍스트 붙여넣기"},{id:"s3-t2",title:"블루프린트를 생성한다",detail:"'채널 블루프린트' 프롬프트를 실행합니다. 채널명 후보, 한 줄 포지셔닝, 타겟 1인 페르소나, 콘텐츠 필러 3개, 고정 포맷, 자막·색 규칙까지 한 번에 나옵니다."},{id:"s3-t3",title:"채널명을 실제로 검증한다",detail:"AI가 준 후보를 그대로 쓰지 마세요. 유튜브 검색창에 넣어 동명 채널이 있는지, 한글·영문 표기가 헷갈리지 않는지, 3초 안에 읽히는지 확인하고 하나만 남깁니다."},{id:"s3-t4",title:"블루프린트를 다시 소스로 넣어 고정한다",detail:"확정한 블루프린트를 메모 → 소스로 변환합니다. 이 작업이 '프로그래밍'의 핵심입니다. 이후 대본을 요청할 때마다 채널 규칙을 다시 설명할 필요가 없어집니다."},{id:"s3-t5",title:"30일 캘린더를 만들고 채널 기본 세팅을 마친다",detail:"'30일 캘린더' 프롬프트로 30편의 주제를 미리 확보하고, Canva 무료 템플릿으로 프로필·배너를 만들어 채널을 개설합니다. 만들 게 정해져 있으면 중간에 멈추지 않습니다."}],prompts:[{id:"p-blueprint",title:"채널 블루프린트",purpose:"채널의 정체성과 제작 규칙을 한 장으로 확정합니다.",body:`업로드된 소스(니치 분석, 성공 패턴)를 근거로 쇼츠 채널 블루프린트를 만들어줘.
+아래 항목을 이 순서대로, 항목마다 근거 소스를 인용해서 작성한다.
+
+1. 한 줄 포지셔닝 : "___를 위한 ___ 채널" 형식
+2. 타겟 1인 페르소나 : 나이, 직업, 지금 겪는 문제, 이 영상을 보는 상황(출퇴근/자기 전 등)
+3. 채널명 후보 8개 : 각각 발음 난이도와 검색 유리함을 한 줄 평가
+4. 콘텐츠 필러 3개 : 각 필러의 목적(유입/신뢰/전환)과 예시 주제 3개
+5. 고정 포맷 : 60초를 어떻게 나눌지 초 단위 구성(후크 0-3초 포함)
+6. 시각 규칙 : 자막 위치와 글자 크기 원칙, 색 3개(HEX), 화면에 절대 넣지 않을 것
+7. 금지 목록 : 이 채널이 다루지 않을 주제와 하지 않을 표현
+
+마지막에 이 블루프린트의 가장 약한 부분 하나를 스스로 지적해줘.`},{id:"p-calendar",title:"30일 콘텐츠 캘린더",purpose:"30편 분량의 주제를 미리 확보해 제작이 멈추지 않게 합니다.",body:`확정된 블루프린트를 기준으로 30일 콘텐츠 캘린더를 만들어줘.
+
+규칙:
+- 필러 3개를 번갈아 배치한다.
+- 첫 7편은 가장 검색 수요가 확실한 주제로 배치한다. (초기 노출이 채널 방향을 학습시키므로)
+- 각 편은 하나의 질문에만 답한다. 두 개를 다루면 쪼갠다.
+
+표로 만들어줘. 열은: 날짜(1~30) / 필러 / 영상 제목(35자 이내) / 후크 첫 문장 / 다루는 질문 하나 / 마지막 CTA
+표 아래에 "이 30편 중 시리즈로 묶어 재생목록으로 만들 조합"을 3개 제안해줘.`}],checkpoints:["블루프린트가 메모 → 소스로 저장됐다","채널명이 유튜브 검색으로 중복 확인까지 끝났다","30편 주제 캘린더가 표로 나왔다","채널 프로필·배너가 올라가고 채널이 개설됐다"],pitfalls:[{title:"채널명은 검색으로 반드시 검증하세요",body:"AI는 이미 존재하는 채널명을 걸러주지 못합니다. 동명 채널이 있으면 초기 노출을 전부 빼앗깁니다."},{title:"필러를 4개 이상 만들지 마세요",body:"주제가 넓어지면 추천 알고리즘이 채널을 누구에게 보여줄지 학습하지 못합니다. 초기에는 3개, 가능하면 2개가 낫습니다."}]},{slug:"script-dna",order:4,title:"성공 영상 DNA로 대본 뽑기",headline:"베끼는 게 아니라, 검증된 구조 위에 내 내용을 올린다",summary:"잘 터진 영상의 URL만 소스로 넣으면 NotebookLM이 대본 전체를 읽어옵니다. 여기서 문장을 훔치는 게 아니라 구조(후크·전개·전환·마무리)만 가져와, 내 니치의 내용으로 다시 씁니다.",minutes:45,outcome:"초 단위 타임코드와 화면 지시가 붙은 60초 대본 3편",prep:["3단계 블루프린트가 소스로 들어간 대본 공장 노트북","벤치마크 영상 URL 3~5개 (조회수 10만 이상, 최근 6개월 이내 권장)"],tasks:[{id:"s4-t1",title:"벤치마크 영상을 소스로 넣는다",detail:"YouTube URL을 소스로 추가하면 자막이 텍스트로 들어옵니다. 자막이 없는 영상은 읽어오지 못하니, 자동 자막이 켜진 영상을 고르세요. 형식이 비슷한 영상끼리 묶어야 공통 패턴이 보입니다.",where:"대본 공장 노트북 → 소스 추가 → YouTube URL"},{id:"s4-t2",title:"구조만 추출한다",detail:"'대본 구조 추출' 프롬프트를 실행합니다. 결과에서 문장을 가져오는 게 아니라 '몇 초에 어떤 역할의 말이 오는가'라는 뼈대만 사용합니다."},{id:"s4-t3",title:"내 주제로 60초 대본을 생성한다",detail:"'60초 대본' 프롬프트에 캘린더의 주제를 넣습니다. 출력 형식을 엄격히 지정해야 편집 단계에서 바로 쓸 수 있습니다. 3편을 연달아 만들어 두세요."},{id:"s4-t4",title:"후크를 20개로 늘려 하나를 고른다",detail:"쇼츠의 성패는 첫 3초에서 갈립니다. '후크 변형 20개' 프롬프트로 변형을 만들고, 소리 없이 자막만 읽었을 때 손가락이 멈추는 문장을 고릅니다."},{id:"s4-t5",title:"팩트체크하고 내 관점을 얹는다",detail:"'대본 팩트체크' 프롬프트로 소스에 근거 없는 문장을 걸러냅니다. 그리고 반드시 내 경험·의견·직접 만든 예시를 한 구간 넣으세요. 이 작업이 정책상 '원본성'을 만드는 부분이라 생략하면 나중에 수익화가 막힙니다."}],prompts:[{id:"p-dna",title:"대본 구조 추출",purpose:"성공 영상에서 문장이 아니라 뼈대를 가져옵니다.",body:`소스로 넣은 유튜브 영상들의 대본을 구조만 추출해줘. 원문 문장을 그대로 옮기지 말고, 역할로 요약한다.
+
+각 영상을 이 형식으로:
+[0-3초] 역할: (예: 손해 보는 상황 제시) / 어떤 방식으로: (질문/숫자/부정문)
+[3-15초] ...
+[15-45초] ...
+[45-60초] ...
+
+그 다음:
+1. 영상들의 공통 구조를 하나의 템플릿으로 합성해줘. (초 단위 구간과 각 구간의 역할만)
+2. 구간별로 "여기서 시청자가 이탈하는 이유"와 그것을 막는 장치를 적어줘.
+3. 이 템플릿에서 절대 바꾸면 안 되는 부분과, 내 개성을 넣어도 되는 부분을 구분해줘.`},{id:"p-script",title:"60초 대본",purpose:"촬영·편집에 바로 쓸 수 있는 형식으로 대본을 받습니다.",body:`앞에서 만든 공통 구조 템플릿과 채널 블루프린트를 지켜서, 아래 주제로 60초 쇼츠 대본을 써줘.
+
+주제: [여기에 캘린더의 주제를 붙여넣기]
+
+출력 형식 (표):
+| 시간 | 내레이션(말하는 문장) | 화면에 보이는 것 | 화면 자막(최대 12자) |
+규칙:
+- 내레이션은 실제 말하는 속도로 60초를 넘기지 않는다. (한국어 약 300자 내외)
+- 한 문장은 20자 이내로 짧게 끊는다.
+- 소리를 껐을 때도 자막만으로 내용이 전달되어야 한다.
+- 숫자와 고유명사는 반드시 소스에 근거가 있는 것만 쓰고, 인용을 표시한다.
+- 마지막 5초에는 다음 영상으로 넘어가게 만드는 한 문장을 넣는다.
+
+표 아래에:
+1. 이 대본에서 소스 근거가 없는 문장 목록
+2. 내 경험을 넣으면 좋은 구간 1곳과, 거기에 넣을 질문 3개`},{id:"p-hooks",title:"후크 변형 20개",purpose:"첫 3초 문장을 여러 유형으로 만들어 가장 강한 것을 고릅니다.",body:`이 대본의 첫 3초 후크를 20개로 변형해줘.
+
+유형을 골고루 섞는다: 숫자 제시 / 손실 경고 / 흔한 오해 반박 / 질문 / 즉시 결론 / 비교 / 시간 압박
+조건:
+- 각 후크는 15자 이내
+- 과장\xb7낚시 금지 (대본 내용으로 실제로 지킬 수 있는 약속만)
+- 자막으로 화면에 띄웠을 때 읽히는지 기준으로 쓴다
+
+표로 주고, 열은: 번호 / 후크 / 유형 / 이 후크가 약속하는 것 / 대본이 그 약속을 지키는지(O/X)`},{id:"p-factcheck",title:"대본 팩트체크",purpose:"근거 없는 문장을 지워 채널 신뢰도와 수익화 심사를 지킵니다.",body:`아래 대본을 업로드된 소스와 대조해서 검증해줘.
+
+[대본 붙여넣기]
+
+문장 단위로 표를 만들어줘. 열은:
+문장 / 판정(근거 있음\xb7근거 없음\xb7과장) / 근거 소스 인용 / 수정 제안
+
+마지막에:
+1. 반드시 삭제해야 하는 문장
+2. 표현을 완화해야 하는 문장
+3. 출처를 화면에 표기해야 하는 문장`}],checkpoints:["공통 구조 템플릿이 초 단위로 정리됐다","60초 대본 3편이 표 형식으로 완성됐다","각 대본의 후크가 20개 변형 중에서 선택됐다","근거 없는 문장이 제거되고 내 관점이 한 구간 들어갔다"],pitfalls:[{title:"자막이 없는 영상은 읽어오지 못합니다",body:"YouTube 소스는 자막(대본) 텍스트를 가져오는 방식입니다. 자동 자막이 꺼져 있거나 비공개 영상은 분석되지 않으니 다른 영상을 고르세요."},{title:"문장을 그대로 가져오면 그게 재업로드입니다",body:"남의 대본을 조금 바꿔 쓰는 건 정책상 재사용 콘텐츠로 판단될 수 있습니다. 가져오는 건 구간 구성뿐이고, 문장·예시·결론은 내 것이어야 합니다."}]},{slug:"studio-render",order:5,title:"스튜디오에서 영상 뽑고 올리기",headline:"편집기를 배우지 않고 완성본까지 가는 세 갈래 길",summary:"NotebookLM의 Studio 패널이 대본을 영상으로 만들어줍니다. 다만 세로 쇼츠 포맷에는 언어·플랜 제약이 있어서, 영어 경로와 한국어 경로를 나눠야 합니다. 한국어라면 편집기 없이 명령 한 줄로 뽑는 자동 렌더링 경로가 가장 빠릅니다.",minutes:70,outcome:"업로드 가능한 9:16 영상 파일과, 제목·설명·해시태그가 채워진 발행 세트",prep:["4단계에서 완성한 대본","대본을 소스로 변환해 넣은 노트북","자동 경로: Node와 FFmpeg가 설치된 컴퓨터 (이 프로젝트의 렌더 스크립트를 씁니다)","손으로 조립할 경우: Vrew 또는 CapCut 무료 플랜"],tasks:[{id:"s5-t1",title:"대본을 소스로 변환한다",detail:"Studio 패널은 채팅 답변이 아니라 '소스'를 재료로 씁니다. 완성 대본을 메모로 저장한 뒤 소스로 변환하고, 이번 영상에 필요 없는 소스는 선택 해제하세요. 그러지 않으면 다른 주제가 섞여 나옵니다.",where:"노트북 → 메모 → 소스로 변환 → 소스 체크박스 정리"},{id:"s5-t2",title:"포맷을 고른다: Short / Explainer / Cinematic",detail:"Short는 약 60초 세로 9:16이지만 출시 시점 기준 영어 내레이션 전용이고 만 18세 이상, 유료 플랜 우선 제공 후 무료로 확대되는 중입니다. Explainer는 80개 이상 언어(한국어 포함)를 지원하지만 16:9 가로입니다. 이 차이가 아래 두 경로를 갈라놓습니다.",where:"Studio 패널 → 동영상 개요 → 형식 선택"},{id:"s5-t3",title:"[영어 경로] Short를 포커스 프롬프트로 생성한다",detail:"Short는 하나의 개념만 다루므로, 무엇에 집중할지 지정하는 프롬프트가 결과를 좌우합니다. 대본을 편집하거나 타임라인을 수정할 수는 없고, 마음에 안 들면 포커스를 바꿔 재생성하는 방식입니다."},{id:"s5-t4",title:"[한국어 경로] 오디오·Explainer를 재료로 9:16을 조립한다",detail:"① Explainer(한국어)로 영상을 생성해 다운로드하거나, ② 오디오 개요를 한국어로 만들어 내레이션만 확보합니다. 그다음 Vrew나 CapCut의 무료 플랜에서 9:16 프로젝트를 만들고, 음성을 넣고 자동 자막을 뽑아 대본의 자막 열대로 다듬습니다. 여기까지 전부 무료 범위에서 가능합니다."},{id:"s5-t5",title:"[자동 경로] 명령 한 줄로 9:16 영상을 뽑는다",detail:"CapCut에는 영상을 자동으로 만들어주는 공개 API가 없습니다. 대신 이 프로젝트의 '자동 렌더링' 화면에 4단계 대본 표를 붙여넣으면 렌더 스펙 파일이 만들어지고, 컴퓨터에서 `node scripts/render-short.mjs 스펙.json` 한 줄이면 1080×1920 mp4와 자막 파일이 나옵니다. 편집 프로그램을 열지 않고, 같은 대본이면 항상 같은 결과가 나옵니다.",where:"자동 렌더링 화면 → 스펙 내려받기 → 컴퓨터에서 명령 실행"},{id:"s5-t6",title:"내레이션 음성을 붙인다",detail:"렌더 스크립트는 내레이션 텍스트 파일도 같이 만들어줍니다. 그 텍스트를 무료 TTS(NotebookLM 오디오 개요, CLOVA 더빙 무료 사용량, Vrew의 AI 목소리 등)에 넣어 음성을 만들고, --audio 옵션을 붙여 다시 실행하면 음성이 얹힌 완성본이 됩니다. 직접 녹음한 목소리를 쓰면 원본성까지 함께 챙깁니다."},{id:"s5-t7",title:"원본성을 더한다",detail:"AI 산출물만 올리면 대량생산 콘텐츠로 분류될 위험이 큽니다. 내 목소리 해설, 직접 캡처한 화면, 실제 사용 예시, 내 결론 한 컷 중 최소 하나를 반드시 넣으세요. 수익화 심사에서 가장 많이 걸리는 지점입니다."},{id:"s5-t8",title:"발행 세트를 만들고 업로드한다",detail:"'업로드 메타데이터' 프롬프트로 제목·설명·해시태그를 만들고 업로드합니다. 세로 영상이고 3분 이내면 자동으로 쇼츠로 분류됩니다. 업로드 후 48시간 뒤 유지율 그래프를 보고 다음 편에 반영하세요."}],prompts:[{id:"p-focus",title:"Short 포커스 프롬프트",purpose:"60초 영상이 어떤 하나의 개념에 집중할지 지정합니다.",body:`Focus on one single idea only: [핵심 개념 한 줄].
+
+Requirements:
+- Open with this hook in the first 3 seconds: [선택한 후크]
+- Explain only the following 3 beats, in this order: [1] [2] [3]
+- Use concrete numbers from the sources and keep on-screen text under 6 words per card
+- Do not summarize the whole notebook. Ignore every source except the script note.
+- End with this closing line: [마지막 문장]
+
+Visual tone: [예: clean, high-contrast, minimal illustration]`},{id:"p-metadata",title:"업로드 메타데이터",purpose:"제목·설명·해시태그·고정 댓글을 한 번에 받습니다.",body:`이 대본으로 업로드할 쇼츠의 발행 세트를 만들어줘.
+
+1. 제목 5개 (각 40자 이내, 낚시 금지, 검색어를 앞쪽에 배치)
+2. 설명문 3줄 (첫 줄에 핵심 결론, 마지막 줄에 다음 영상 안내)
+3. 해시태그 3개 (#Shorts 포함, 니치 키워드 2개)
+4. 고정 댓글 1개 (댓글을 유도하는 질문 형태)
+5. 이 영상에서 다음 편으로 이어질 후속 주제 3개
+
+각 제목마다 "이 제목이 노리는 검색 의도"를 한 줄로 붙여줘.`},{id:"p-retention",title:"성과 리뷰",purpose:"업로드 후 데이터를 다음 편 개선으로 연결합니다.",body:`업로드한 쇼츠의 성과를 리뷰하려고 한다. 아래 수치를 줄게.
+
+조회수: []
+평균 시청 지속 시간: []
+이탈이 몰린 지점(초): []
+좋아요/댓글: []
+구독 전환: []
+
+이 수치를 대본과 대조해서:
+1. 이탈 지점의 대본 문장을 찾아 원인을 추정해줘.
+2. 후크가 약했는지, 중간 전개가 늘어졌는지, 마무리가 약했는지 판정해줘.
+3. 다음 편에서 바꿀 것 3가지를 우선순위대로 제안해줘. (한 번에 하나만 바꿀 수 있게)`}],checkpoints:["9:16 영상 파일이 손에 들어왔다","내레이션 음성이 자막과 어긋나지 않는다","소리를 끄고 봐도 내용이 전달된다","AI 산출물 외에 내 원본 요소가 최소 하나 들어갔다","제목·설명·해시태그가 채워져 업로드됐다"],pitfalls:[{title:"Short 포맷의 제약을 먼저 확인하세요",body:"출시 시점 기준 Short는 약 60초 고정, 세로 전용, 영어 내레이션만, 만 18세 이상, 대본 편집과 타임라인 수정 불가입니다. 조정 수단은 포커스 프롬프트를 바꿔 재생성하는 것뿐입니다. 한국어 쇼츠라면 Explainer + 무료 편집기 경로가 현실적입니다."},{title:"CapCut 자동화는 공식 경로가 없습니다",body:"CapCut의 Open Platform은 에디터 안에서 돌아가는 플러그인용이고, JSON을 보내면 영상을 돌려주는 렌더링 API는 공개되지 않았습니다. 프로젝트 파일(draft_content.json)을 코드로 만드는 우회법이 있지만 앱 업데이트마다 깨지고 데스크톱 한 대에 묶입니다. 자동화가 목적이라면 이 프로젝트의 FFmpeg 렌더 경로가 안전합니다."},{title:"같은 템플릿으로 양산하면 수익화가 막힙니다",body:"유튜브는 반복적·대량생산 콘텐츠를 '진정성 없는 콘텐츠'로 보고 수익화 대상에서 제외합니다. 편당 원본 요소를 넣는 게 속도보다 중요합니다."},{title:"쇼츠 수익화 문턱은 2027년 2월 1일에 올라갑니다",body:"현재는 구독자 1,000명 + 90일간 쇼츠 조회 1,000만 회(또는 12개월 시청 4,000시간)입니다. 2027년 2월 1일부터 신규 신청자는 2,000만 회 / 8,000시간으로 두 배가 됩니다. 기존 파트너는 유지되니, 지금 시작해 문턱을 먼저 넘는 편이 유리합니다."}]}],r=[{id:"prep-google",title:"구글 계정",detail:"notebooklm.google.com 에 로그인하면 바로 시작됩니다. 별도 신청이나 대기 목록이 없습니다.",cost:"무료"},{id:"prep-notebooklm",title:"NotebookLM 무료 플랜",detail:"노트북 수, 노트북당 소스 수, 하루 생성 횟수에 한도가 있습니다. 한도는 자주 바뀌므로 Studio 패널에 표시되는 남은 횟수를 기준으로 계획하세요.",cost:"무료"},{id:"prep-youtube",title:"유튜브 채널",detail:"구글 계정으로 개설됩니다. 채널명은 3단계에서 확정하니 지금은 만들지 않아도 됩니다.",cost:"무료"},{id:"prep-editor",title:"무료 편집 도구 1개",detail:"한국어 쇼츠를 만들려면 9:16 조립용 도구가 필요합니다. Vrew(한국어 자동 자막·TTS)나 CapCut 무료 플랜 중 하나만 고르세요.",cost:"무료 플랜"},{id:"prep-canva",title:"썸네일·채널 아트 도구",detail:"Canva 무료 플랜으로 프로필 이미지와 배너, 커버 프레임을 만듭니다.",cost:"무료 플랜"}];t.flatMap(e=>e.prompts.map(t=>({...t,stepSlug:e.slug,stepTitle:e.title,stepOrder:e.order})));let o=t.flatMap(e=>e.tasks.map(e=>e.id)),n=[...r.map(e=>e.id),...o];t.reduce((e,t)=>e+t.minutes,0),e.s(["allCheckableIds",0,n,"prepItems",0,r,"steps",0,t])},66228,(e,t,r)=>{"use strict";e.i(5196),Object.defineProperty(r,"__esModule",{value:!0});var o={default:function(){return b},useLinkStatus:function(){return v}};for(var n in o)Object.defineProperty(r,n,{enumerable:!0,get:o[n]});let i=e.r(56421),l=e.r(38935),u=i._(e.r(46585)),a=e.r(40493),s=e.r(97338),d=e.r(75130),c=e.r(63410),p=e.r(82150),f=e.r(15366),h=e.r(26805),y=e.r(81259),m=e.r(56141);function b(t){var r;let o,n,i,[b,v]=(0,u.useOptimistic)(h.IDLE_LINK_STATUS),P=(0,u.useRef)(null),{href:S,as:C,children:E,prefetch:k=null,passHref:_,replace:T,shallow:O,scroll:w,onClick:L,onMouseEnter:R,onTouchStart:x,legacyBehavior:j=!1,onNavigate:A,transitionTypes:N,ref:I,unstable_dynamicOnHover:M,...U}=t;o=E,j&&("string"==typeof o||"number"==typeof o)&&(o=(0,l.jsx)("a",{children:o}));let F=u.default.useContext(s.AppRouterContext),$=!1!==k,D=!1===k?"none":!0===k?"full":"auto",B="none"!==D?"auto"===D?m.FetchStrategy.PPR:m.FetchStrategy.Full:m.FetchStrategy.PPR,K="string"==typeof(r=C||S)?r:(0,a.formatUrl)(r);if(j){if(o?.$$typeof===Symbol.for("react.lazy"))throw Object.defineProperty(Error("`<Link legacyBehavior>` received a direct child that is either a Server Component, or JSX that was loaded with React.lazy(). This is not supported. Either remove legacyBehavior, or make the direct child a Client Component that renders the Link's `<a>` tag."),"__NEXT_ERROR_CODE",{value:"E863",enumerable:!1,configurable:!0});n=u.default.Children.only(o)}let V=j?n&&"object"==typeof n&&n.ref:I,z,Y=u.default.useCallback(e=>(null!==F&&(P.current=(0,h.mountLinkInstance)(e,K,F,B,$,v,z)),()=>{P.current&&((0,h.unmountLinkForCurrentNavigation)(P.current),P.current=null),(0,h.unmountPrefetchableInstance)(e)}),[$,K,F,B,v,z]),X={ref:(0,d.useMergedRef)(Y,V),onClick(t){j||"function"!=typeof L||L(t),j&&n.props&&"function"==typeof n.props.onClick&&n.props.onClick(t),!F||t.defaultPrevented||function(t,r,o,n,i,l,a,s="none"){if("u">typeof window){let d,{nodeName:c}=t.currentTarget;if("A"===c.toUpperCase()&&((d=t.currentTarget.getAttribute("target"))&&"_self"!==d||t.metaKey||t.ctrlKey||t.shiftKey||t.altKey||t.nativeEvent&&2===t.nativeEvent.which)||t.currentTarget.hasAttribute("download"))return;if(!(0,y.isLocalURL)(r)){n&&(t.preventDefault(),location.replace(r));return}if(t.preventDefault(),l){let e=!1;if(l({preventDefault:()=>{e=!0}}),e)return}let{dispatchNavigateAction:p}=e.r(55528);u.default.startTransition(()=>{p(r,n?"replace":"push",!1===i?f.ScrollBehavior.NoScroll:f.ScrollBehavior.Default,o.current,a,s)})}}(t,K,P,T,w,A,N,D)},onMouseEnter(e){j||"function"!=typeof R||R(e),j&&n.props&&"function"==typeof n.props.onMouseEnter&&n.props.onMouseEnter(e),F&&$&&(0,h.onNavigationIntent)(e.currentTarget,!0===M)},onTouchStart:function(e){j||"function"!=typeof x||x(e),j&&n.props&&"function"==typeof n.props.onTouchStart&&n.props.onTouchStart(e),F&&$&&(0,h.onNavigationIntent)(e.currentTarget,!0===M)}};return(0,c.isAbsoluteUrl)(K)?X.href=K:j&&!_&&("a"!==n.type||"href"in n.props)||(X.href=(0,p.addBasePath)(K)),i=j?u.default.cloneElement(n,X):(0,l.jsx)("a",{...U,...X,children:o}),(0,l.jsx)(g.Provider,{value:b,children:i})}let g=(0,u.createContext)(h.IDLE_LINK_STATUS),v=()=>(0,u.useContext)(g);("function"==typeof r.default||"object"==typeof r.default&&null!==r.default)&&void 0===r.default.__esModule&&(Object.defineProperty(r.default,"__esModule",{value:!0}),Object.assign(r.default,r),t.exports=r.default)},75130,(e,t,r)=>{"use strict";Object.defineProperty(r,"__esModule",{value:!0}),Object.defineProperty(r,"useMergedRef",{enumerable:!0,get:function(){return n}});let o=e.r(46585);function n(e,t){let r=(0,o.useRef)(null),n=(0,o.useRef)(null);return(0,o.useCallback)(o=>{if(null===o){let e=r.current;e&&(r.current=null,e());let t=n.current;t&&(n.current=null,t())}else e&&(r.current=i(e,o)),t&&(n.current=i(t,o))},[e,t])}function i(e,t){if("function"!=typeof e)return e.current=t,()=>{e.current=null};{let r=e(t);return"function"==typeof r?r:()=>e(null)}}("function"==typeof r.default||"object"==typeof r.default&&null!==r.default)&&void 0===r.default.__esModule&&(Object.defineProperty(r.default,"__esModule",{value:!0}),Object.assign(r.default,r),t.exports=r.default)},63410,(e,t,r)=>{"use strict";e.i(5196),Object.defineProperty(r,"__esModule",{value:!0});var o={DecodeError:function(){return b},MiddlewareNotFoundError:function(){return S},MissingStaticPage:function(){return P},NormalizeError:function(){return g},PageNotFoundError:function(){return v},SP:function(){return y},ST:function(){return m},WEB_VITALS:function(){return i},execOnce:function(){return l},getDisplayName:function(){return c},getLocationOrigin:function(){return s},getURL:function(){return d},isAbsoluteUrl:function(){return a},isResSent:function(){return p},loadGetInitialProps:function(){return h},normalizeRepeatedSlashes:function(){return f},stringifyError:function(){return C}};for(var n in o)Object.defineProperty(r,n,{enumerable:!0,get:o[n]});let i=["CLS","FCP","FID","INP","LCP","TTFB"];function l(e){let t,r=!1;return(...o)=>(r||(r=!0,t=e(...o)),t)}let u=/^[a-zA-Z][a-zA-Z\d+\-.]*?:/,a=e=>{let t=e.charCodeAt(0);return!!(t>=65&&t<=90||t>=97&&t<=122)&&u.test(e)};function s(){let{protocol:e,hostname:t,port:r}=window.location;return`${e}//${t}${r?":"+r:""}`}function d(){let{href:e}=window.location,t=s();return e.substring(t.length)}function c(e){return"string"==typeof e?e:e.displayName||e.name||"Unknown"}function p(e){return e.finished||e.headersSent}function f(e){let t=e.split("?");return t[0].replace(/\\/g,"/").replace(/\/\/+/g,"/")+(t[1]?`?${t.slice(1).join("?")}`:"")}async function h(e,t){let r=t.res||t.ctx&&t.ctx.res;if(!e.getInitialProps)return t.ctx&&t.Component?{pageProps:await h(t.Component,t.ctx)}:{};let o=await e.getInitialProps(t);if(r&&p(r))return o;if(!o)throw Object.defineProperty(Error(`"${c(e)}.getInitialProps()" should resolve to an object. But found "${o}" instead.`),"__NEXT_ERROR_CODE",{value:"E1025",enumerable:!1,configurable:!0});return o}let y="u">typeof performance,m=y&&["mark","measure","getEntriesByName"].every(e=>"function"==typeof performance[e]);class b extends Error{}class g extends Error{}class v extends Error{constructor(e){super(),this.code="ENOENT",this.name="PageNotFoundError",this.message=`Cannot find module for page: ${e}`}}class P extends Error{constructor(e,t){super(),this.message=`Failed to load static file for page: ${e} ${t}`}}class S extends Error{constructor(){super(),this.code="ENOENT",this.message="Cannot find the middleware module"}}function C(e){return JSON.stringify({message:e.message,stack:e.stack})}},81259,(e,t,r)=>{"use strict";Object.defineProperty(r,"__esModule",{value:!0}),Object.defineProperty(r,"isLocalURL",{enumerable:!0,get:function(){return i}});let o=e.r(63410),n=e.r(82062);function i(e){if(!(0,o.isAbsoluteUrl)(e))return!0;try{let t=(0,o.getLocationOrigin)(),r=new URL(e,t);return r.origin===t&&(0,n.hasBasePath)(r.pathname)}catch(e){return!1}}},5669,(e,t,r)=>{"use strict";Object.defineProperty(r,"__esModule",{value:!0});var o={assign:function(){return a},searchParamsToUrlQuery:function(){return i},urlQueryToSearchParams:function(){return u}};for(var n in o)Object.defineProperty(r,n,{enumerable:!0,get:o[n]});function i(e){let t={};for(let[r,o]of e.entries()){let e=t[r];void 0===e?t[r]=o:Array.isArray(e)?e.push(o):t[r]=[e,o]}return t}function l(e){return"string"==typeof e?e:("number"!=typeof e||isNaN(e))&&"boolean"!=typeof e?"":String(e)}function u(e){let t=new URLSearchParams;for(let[r,o]of Object.entries(e))if(Array.isArray(o))for(let e of o)t.append(r,l(e));else t.set(r,l(o));return t}function a(e,...t){for(let r of t){for(let t of r.keys())e.delete(t);for(let[t,o]of r.entries())e.append(t,o)}return e}},40493,(e,t,r)=>{"use strict";e.i(5196),Object.defineProperty(r,"__esModule",{value:!0});var o={formatUrl:function(){return u},formatWithValidation:function(){return s},urlObjectKeys:function(){return a}};for(var n in o)Object.defineProperty(r,n,{enumerable:!0,get:o[n]});let i=e.r(56421)._(e.r(5669)),l=/https?|ftp|gopher|file/;function u(e){let{auth:t,hostname:r}=e,o=e.protocol||"",n=e.pathname||"",u=e.hash||"",a=e.query||"",s=!1;t=t?encodeURIComponent(t).replace(/%3A/i,":")+"@":"",e.host?s=t+e.host:r&&(s=t+(~r.indexOf(":")?`[${r}]`:r),e.port&&(s+=":"+e.port)),a&&"object"==typeof a&&(a=String(i.urlQueryToSearchParams(a)));let d=e.search||a&&`?${a}`||"";return o&&!o.endsWith(":")&&(o+=":"),e.slashes||(!o||l.test(o))&&!1!==s?(s="//"+(s||""),n&&"/"!==n[0]&&(n="/"+n)):s||(s=""),u&&"#"!==u[0]&&(u="#"+u),d&&"?"!==d[0]&&(d="?"+d),n=n.replace(/[?#]/g,encodeURIComponent),d=d.replace("#","%23"),`${o}${s}${n}${d}${u}`}let a=["auth","hash","host","hostname","href","path","pathname","port","protocol","query","search","slashes"];function s(e){return u(e)}}]);

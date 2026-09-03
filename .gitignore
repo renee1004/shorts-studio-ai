@@ -42,3 +42,7 @@ next-env.d.ts
 
 # 렌더링 산출물과 폰트 캐시
 /.cache
+
+# 로컬 환경 파일
+.env.local
+.env*.local

@@ -1,0 +1,59 @@
+{
+  "app": {
+    "[project]/apps/web/src/app/(product)/dashboard/page": [
+      "static/media/fca78c2ee6cec166-s.p.1sn26-iqxrgtp.woff2",
+      "static/media/70bc3e132a0a741e-s.p.3t6q91iet4nsy.woff2"
+    ],
+    "[project]/apps/web/src/app/(product)/radar/niches/page": [
+      "static/media/fca78c2ee6cec166-s.p.1sn26-iqxrgtp.woff2",
+      "static/media/70bc3e132a0a741e-s.p.3t6q91iet4nsy.woff2"
+    ],
+    "[project]/apps/web/src/app/(product)/radar/topics/page": [
+      "static/media/fca78c2ee6cec166-s.p.1sn26-iqxrgtp.woff2",
+      "static/media/70bc3e132a0a741e-s.p.3t6q91iet4nsy.woff2"
+    ],
+    "[project]/apps/web/src/app/(product)/runs/page": [
+      "static/media/fca78c2ee6cec166-s.p.1sn26-iqxrgtp.woff2",
+      "static/media/70bc3e132a0a741e-s.p.3t6q91iet4nsy.woff2"
+    ],
+    "[project]/apps/web/src/app/(product)/settings/page": [
+      "static/media/fca78c2ee6cec166-s.p.1sn26-iqxrgtp.woff2",
+      "static/media/70bc3e132a0a741e-s.p.3t6q91iet4nsy.woff2"
+    ],
+    "[project]/apps/web/src/app/_not-found/page": [
+      "static/media/fca78c2ee6cec166-s.p.1sn26-iqxrgtp.woff2",
+      "static/media/70bc3e132a0a741e-s.p.3t6q91iet4nsy.woff2"
+    ],
+    "[project]/apps/web/src/app/login/page": [
+      "static/media/fca78c2ee6cec166-s.p.1sn26-iqxrgtp.woff2",
+      "static/media/70bc3e132a0a741e-s.p.3t6q91iet4nsy.woff2"
+    ],
+    "[project]/apps/web/src/app/onboarding/page": [
+      "static/media/fca78c2ee6cec166-s.p.1sn26-iqxrgtp.woff2",
+      "static/media/70bc3e132a0a741e-s.p.3t6q91iet4nsy.woff2"
+    ],
+    "[project]/apps/web/src/app/page": [
+      "static/media/fca78c2ee6cec166-s.p.1sn26-iqxrgtp.woff2",
+      "static/media/70bc3e132a0a741e-s.p.3t6q91iet4nsy.woff2"
+    ],
+    "[project]/apps/web/src/app/playbook/page": [
+      "static/media/fca78c2ee6cec166-s.p.1sn26-iqxrgtp.woff2",
+      "static/media/70bc3e132a0a741e-s.p.3t6q91iet4nsy.woff2"
+    ],
+    "[project]/apps/web/src/app/playbook/prompts/page": [
+      "static/media/fca78c2ee6cec166-s.p.1sn26-iqxrgtp.woff2",
+      "static/media/70bc3e132a0a741e-s.p.3t6q91iet4nsy.woff2"
+    ],
+    "[project]/apps/web/src/app/playbook/render/page": [
+      "static/media/fca78c2ee6cec166-s.p.1sn26-iqxrgtp.woff2",
+      "static/media/70bc3e132a0a741e-s.p.3t6q91iet4nsy.woff2"
+    ],
+    "[project]/apps/web/src/app/playbook/steps/[slug]/page": [
+      "static/media/fca78c2ee6cec166-s.p.1sn26-iqxrgtp.woff2",
+      "static/media/70bc3e132a0a741e-s.p.3t6q91iet4nsy.woff2"
+    ]
+  },
+  "appUsingSizeAdjust": true,
+  "pages": {},
+  "pagesUsingSizeAdjust": false
+}

@@ -1,0 +1,45 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "exactOptionalPropertyTypes": false,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "paths": {
+      "@shorts-os/config": [
+        "./packages/config/src/index.ts"
+      ],
+      "@shorts-os/observability": [
+        "./packages/observability/src/index.ts"
+      ],
+      "@shorts-os/contracts": [
+        "./packages/contracts/src/index.ts"
+      ],
+      "@shorts-os/db": [
+        "./packages/db/src/index.ts"
+      ],
+      "@shorts-os/domain": [
+        "./packages/domain/src/index.ts"
+      ],
+      "@shorts-os/providers": [
+        "./packages/providers/src/index.ts"
+      ],
+      "@shorts-os/services": [
+        "./packages/services/src/index.ts"
+      ]
+    }
+  }
+}

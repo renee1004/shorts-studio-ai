@@ -1,0 +1,51 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "jsx": "preserve",
+    "incremental": true,
+    "allowJs": true,
+    "moduleResolution": "bundler",
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@shorts-os/config": [
+        "../../packages/config/src/index.ts"
+      ],
+      "@shorts-os/observability": [
+        "../../packages/observability/src/index.ts"
+      ],
+      "@shorts-os/contracts": [
+        "../../packages/contracts/src/index.ts"
+      ],
+      "@shorts-os/db": [
+        "../../packages/db/src/index.ts"
+      ],
+      "@shorts-os/domain": [
+        "../../packages/domain/src/index.ts"
+      ],
+      "@shorts-os/providers": [
+        "../../packages/providers/src/index.ts"
+      ],
+      "@shorts-os/services": [
+        "../../packages/services/src/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
