@@ -9,6 +9,7 @@ import {
   type Scene,
 } from "@/lib/render-spec";
 import { ShortPreview } from "@/components/short-preview";
+import { BrowserRender } from "@/components/browser-render";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -249,50 +250,70 @@ export function RenderStudio() {
             </section>
 
             <section>
-              <h2 className="text-lg font-bold">4. 렌더링하기</h2>
+              <h2 className="text-lg font-bold">4. 영상 만들기</h2>
               <p className="mt-1.5 text-balance-ko text-sm text-muted-foreground">
-                스펙 파일을 내려받아 프로젝트 폴더에 두고 아래 명령을 실행하면, 편집 프로그램 없이
-                mp4가 만들어집니다. 모바일에서는 여기까지 만들어 두고 컴퓨터에서 실행하면 됩니다.
+                두 가지 방법이 있습니다. 이 화면에서 바로 만드는 쪽이 빠르고, 명령으로 만드는 쪽은
+                여러 편을 반복해서 뽑을 때 편합니다.
               </p>
 
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Button className="h-9 px-4 font-semibold" onClick={download}>
-                  {fileName} 내려받기
-                </Button>
-                <Button
-                  variant="outline"
-                  className="h-9 px-4"
-                  onClick={() => copy(specJson, "스펙 JSON을 복사했습니다")}
-                >
-                  스펙 JSON 복사
-                </Button>
-                {narration && (
+              <div className="mt-4">
+                <BrowserRender spec={spec} />
+              </div>
+
+              {narration && (
+                <div className="mt-4 rounded-2xl border border-border/70 bg-card p-5">
+                  <h3 className="text-base font-bold">음성이 아직 없다면</h3>
+                  <p className="mt-2 text-balance-ko text-[13px] leading-relaxed text-muted-foreground">
+                    내레이션 전문을 복사해 NotebookLM의 오디오 개요나 무료 TTS에 넣어 음성 파일을
+                    만든 뒤, 위에서 음성을 넣고 다시 만들면 됩니다.
+                  </p>
                   <Button
-                    variant="ghost"
-                    className="h-9 px-4"
+                    variant="outline"
+                    className="mt-3 h-9 px-4"
                     onClick={() => copy(narration, "내레이션 전문을 복사했습니다")}
                   >
-                    내레이션 복사 (무료 TTS용)
+                    내레이션 복사
                   </Button>
-                )}
-              </div>
+                </div>
+              )}
 
-              <div className="mt-4 overflow-x-auto rounded-xl border border-border/70 bg-secondary/25 px-4 py-3">
-                <code className="font-mono text-[12.5px] whitespace-nowrap">{command}</code>
-              </div>
-              <button
-                type="button"
-                onClick={() => copy(command, "명령을 복사했습니다")}
-                className="mt-2 text-xs text-muted-foreground underline decoration-border underline-offset-4 hover:text-foreground"
-              >
-                명령 복사
-              </button>
+              <details className="mt-4 rounded-2xl border border-border/70 bg-card p-5">
+                <summary className="cursor-pointer text-base font-bold">
+                  컴퓨터에서 명령으로 만들기
+                </summary>
+                <p className="mt-3 text-balance-ko text-[13px] leading-relaxed text-muted-foreground">
+                  스펙 파일을 내려받아 프로젝트 폴더에 두고 아래 명령을 실행합니다. FFmpeg가 필요하고,
+                  결과물로 mp4와 자막 파일, 내레이션 텍스트가 함께 나옵니다.
+                </p>
 
-              <p className="mt-4 text-balance-ko text-[13px] leading-relaxed text-muted-foreground">
-                음성을 먼저 만들었다면 <code className="font-mono text-xs">--audio 파일명.mp3</code>
-                를 뒤에 붙이세요. 음성이 없으면 무음 영상과 함께 내레이션 텍스트 파일이 나오니, 그걸
-                무료 TTS에 넣어 음성을 만든 뒤 다시 실행하면 됩니다.
-              </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button className="h-9 px-4 font-semibold" onClick={download}>
+                    {fileName} 내려받기
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-9 px-4"
+                    onClick={() => copy(specJson, "스펙 JSON을 복사했습니다")}
+                  >
+                    스펙 JSON 복사
+                  </Button>
+                </div>
+
+                <div className="mt-4 overflow-x-auto rounded-xl border border-border/70 bg-secondary/25 px-4 py-3">
+                  <code className="font-mono text-[12.5px] whitespace-nowrap">{command}</code>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => copy(command, "명령을 복사했습니다")}
+                  className="mt-2 text-xs text-muted-foreground underline decoration-border underline-offset-4 hover:text-foreground"
+                >
+                  명령 복사
+                </button>
+                <p className="mt-4 text-balance-ko text-[13px] leading-relaxed text-muted-foreground">
+                  음성을 먼저 만들었다면{" "}
+                  <code className="font-mono text-xs">--audio 파일명.mp3</code>를 뒤에 붙이세요.
+                </p>
+              </details>
             </section>
           </>
         )}
