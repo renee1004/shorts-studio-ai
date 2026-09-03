@@ -25,12 +25,15 @@ export const POST = route(async ({ request, requestId }) => {
 
   const input = await parseBody(request, bodySchema);
   const token = authProvider().issueSession({ id: input.userId, email: input.email });
+  const proto =
+    request.headers.get("x-forwarded-proto") ?? new URL(request.url).protocol.replace(":", "");
 
   const store = await cookies();
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: env().NODE_ENV === "production",
+    // HTTP 프리뷰(localhost)에서는 Secure 쿠키가 저장되지 않는다.
+    secure: proto === "https",
     path: "/",
     maxAge: 30 * 86_400,
   });
