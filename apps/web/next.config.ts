@@ -11,6 +11,14 @@ const nextConfig: NextConfig = {
     "@shorts-os/services",
   ],
   serverExternalPackages: ["postgres", "pino"],
+  // Playbook을 /playbook 아래로 옮기기 전의 주소로 들어오는 링크를 살려둔다.
+  async redirects() {
+    return [
+      { source: "/render", destination: "/playbook/render", permanent: false },
+      { source: "/prompts", destination: "/playbook/prompts", permanent: false },
+      { source: "/steps/:slug", destination: "/playbook/steps/:slug", permanent: false },
+    ];
+  },
   // typedRoutes는 아직 존재하지 않는 Phase 2+ 경로를 Link 타입으로 막아버려 끈다.
   // 각 Phase에서 라우트가 생기면 다시 켠다.
   typedRoutes: false,
