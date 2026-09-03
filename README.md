@@ -1,6 +1,6 @@
 # Shorts Intelligence OS
 
-공개 시장 신호로 Shorts 주제를 점수화하고, 사람이 승인한 뒤 제작으로 넘기는 운영 도구입니다. 지금은 **Phase 0–1**까지 열려 있습니다. Niche Radar와 Topic Radar를 Demo Mode로 바로 볼 수 있습니다.
+공개 시장 신호로 Shorts 주제를 점수화하고, 사람이 승인한 뒤 제작으로 넘기는 운영 도구입니다. 지금은 **Phase 0–3 Demo**까지 열려 있습니다. Niche Radar, Topic Radar, Research, DNA Library, Content Studio를 Demo Mode로 볼 수 있습니다.
 
 수익을 보장하는 도구가 아닙니다. 점수는 저장된 신호와 공개된 계산식만 사용하며, 빠진 값은 0으로 채우지 않습니다.
 
@@ -117,11 +117,13 @@ pnpm --filter @shorts-os/web build
 - Topic 후보 점수·신뢰도·결측 표시
 - Topic 승인 / 보류 / 제외 (단건·일괄)와 Workflow Run 기록
 - **Research Brief 생성** (Phase 2A). Gemini Search Grounding으로 출처가 확인된 주장만 남기고, 버전을 쌓습니다
+- **DNA Library** (Phase 3 Demo). YouTube URL Import, 대본 유무 표시, 추상 구조 패턴
+- **Content Studio** (Phase 3 Demo). Angle 3개, Script 버전·복구, Claim 매핑, Shot List, QA, 승인 스냅샷 해시
 - Settings에서 Provider 상태와 Phase 잠금 Feature Flag 확인
 
 Research는 Demo Mode에서도 돌아가지만, 웹을 읽지 않으므로 **출처와 사실 주장을 만들지 않습니다.** 구성 틀과 확인이 필요한 항목만 나옵니다. 실제 근거를 채우려면 `.env`에 `APP_MODE=live`, `GEMINI_API_KEY`, `GEMINI_RESEARCH_MODEL`을 넣으세요.
 
-아직 구현하지 않은 것: Notebook 동기화, Trends/Ads API, 영상 생성, YouTube 게시. 인터페이스와 Flag만 준비되어 있습니다.
+아직 구현하지 않은 것: Phase 2 Live 보완, Notebook 동기화, 비용 관리, 배포 보강, Trends/Ads API, 영상 생성, YouTube 게시. 항목은 `IMPLEMENTATION_STATUS.md`의 DEFERRED_AFTER_DEMO에 적혀 있습니다.
 
 ## 구조
 

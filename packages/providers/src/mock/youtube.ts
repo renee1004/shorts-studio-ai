@@ -179,9 +179,7 @@ export class MockYouTubeProvider implements YouTubeDiscoveryProvider {
     this.maybeFail();
     this.units += Math.ceil(input.videoIds.length / 50);
 
-    const videos = input.videoIds
-      .map((id) => this.videoCache.get(id))
-      .filter((video): video is NormalizedVideo => video !== undefined);
+    const videos = input.videoIds.map((id) => this.videoCache.get(id) ?? this.synthesizeImported(id));
 
     return {
       videos,
@@ -189,6 +187,28 @@ export class MockYouTubeProvider implements YouTubeDiscoveryProvider {
       quota: this.quota(),
       providerRequestId: `mock_req_videos_${this.units}`,
     };
+  }
+
+  /** 검색 캐시에 없는 ID는 Demo Import용 공개 메타데이터만 만든다. 대본은 넣지 않는다. */
+  private synthesizeImported(externalVideoId: string): NormalizedVideo {
+    const random = seededRandom(this.seed + hash(externalVideoId));
+    const channelTitle = channelNames[Math.floor(random() * channelNames.length)] as string;
+    const ageHours = Math.round(24 + random() * 400);
+    const video: NormalizedVideo = {
+      externalVideoId,
+      externalChannelId: `mock_ch_${hash(channelTitle).toString(36)}`,
+      channelTitle,
+      url: `https://www.youtube.com/watch?v=${externalVideoId}`,
+      title: `imported demo ${externalVideoId.slice(0, 6)} weekly reporting`,
+      description: "Demo Import 공개 메타데이터입니다. 대본은 포함하지 않습니다.",
+      publishedAt: new Date(this.now.getTime() - ageHours * 3_600_000),
+      durationSeconds: [38, 47, 58, 61][Math.floor(random() * 4)] as number,
+      viewCount: Math.round(1_200 + random() * 80_000),
+      likeCount: Math.round(40 + random() * 900),
+      commentCount: Math.round(4 + random() * 80),
+    };
+    this.videoCache.set(externalVideoId, video);
+    return video;
   }
 
   async getChannelBaseline(input: ChannelBaselineInput): Promise<ChannelBaseline> {

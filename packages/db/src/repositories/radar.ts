@@ -151,6 +151,20 @@ export async function upsertReferenceVideos(
   return new Map(rows.map((row) => [row.externalVideoId, row.id]));
 }
 
+export async function mergeReferenceMetadata(
+  db: Database,
+  workspaceId: string,
+  videoId: string,
+  patch: Record<string, unknown>,
+) {
+  await db
+    .update(referenceVideos)
+    .set({
+      metadata: sql`coalesce(${referenceVideos.metadata}, '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb`,
+    })
+    .where(and(eq(referenceVideos.workspaceId, workspaceId), eq(referenceVideos.id, videoId)));
+}
+
 export async function insertNicheMetricSnapshot(
   db: Database,
   input: {

@@ -49,3 +49,19 @@ export const approvalDecisionEnum = pgEnum("approval_decision", [
   "rejected",
   "changes_requested",
 ]);
+
+export const projectStatusEnum = pgEnum("project_status", [
+  "draft",
+  "research_ready",
+  "scripting",
+  "qa_review",
+  "approved_to_render",
+  "rendering",
+  "rendered",
+  "publish_review",
+  "published",
+  "rejected",
+  "archived",
+]);
+
+export const qaResultEnum = pgEnum("qa_result", ["pass", "warn", "fail", "not_run"]);

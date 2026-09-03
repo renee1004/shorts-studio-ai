@@ -2,8 +2,8 @@
 
 - 기준 문서: `docs/SHORTS_INTELLIGENCE_OS_SPEC.md`
 - 최근 갱신: 2026-09-03
-- 완료 Phase: **Phase 0, Phase 1, Phase 1.5 보완, Phase 2A (Research Brain)**
-- 다음 Phase: Phase 2B (Notebook Sync) — 승인 후 시작
+- 완료 Phase: **Phase 0, Phase 1, Phase 1.5 보완, Phase 2A (Research Brain), Phase 3 Demo (DNA Library · Content Studio)**
+- 다음: Phase 4 Video Factory (승인 후). Phase 2 Live / Notebook / 비용 / 배포는 DEFERRED_AFTER_DEMO
 
 ---
 
@@ -59,7 +59,7 @@ pnpm --filter @shorts-os/web build
 | Provider 429/5xx Mock 테스트 통과 | 완료 | `mock/youtube.test.ts` 9개 (429·503·401·쿼터 초과) |
 | Top Topic을 승인할 수 있음 | 완료 | Topic Radar 결정 버튼 + 상태 전이 검증 + Audit Log |
 
-Phase 1 메뉴는 Dashboard, Niche Radar, Topic Radar, Runs, Settings입니다. 사이드바는 lg 이상에서만 보이므로 작은 화면에는 같은 목록을 가로 스크롤 상단 바로 제공합니다(`components/product/mobile-nav.tsx`).
+Phase 1 메뉴는 Dashboard, Niche Radar, Topic Radar, Runs, Settings입니다. Phase 2A에 Research, Phase 3 Demo에 DNA Library와 Content Studio가 추가됩니다. 사이드바는 lg 이상에서만 보이므로 작은 화면에는 같은 목록을 가로 스크롤 상단 바로 제공합니다(`components/product/mobile-nav.tsx`).
 
 구현된 항목: Niche CRUD, Score Config 버전 관리, YouTube Data Provider(쿼터 회계·캐시·배치·타임아웃·재시도), Metric Snapshot, View Velocity와 Breakout 판단, Topic 클러스터, 설명형 Score와 Confidence, Niche·Topic 화면, Topic 승인·보류·제외(단건·최대 50건 일괄), Workflow Run 화면.
 
@@ -98,6 +98,42 @@ Brief 상태는 인용이 하나도 없으면 `needs_review`, 있으면 `ready`�
 
 ---
 
+## 3.7 Phase 3 Demo — DNA Library와 Content Studio
+
+승인된 Research Brief에서 Angle → Script 버전 → Shot List → QA → Reviewer 승인까지 Demo Mode로 돌립니다. Live Gemini 대본 생성, Notebook, 비용 원장, 배포 보강은 넣지 않았습니다.
+
+| 완료 조건 | 상태 | 근거 |
+|---|---|---|
+| 사용자 제공 Transcript 여부가 명확히 표시 | 완료 | Import 메타 `transcriptProvided`, DNA 화면 배지, 패턴의 `transcriptIncluded` |
+| Transcript가 없으면 모델이 대본을 봤다고 주장하지 않음 | 완료 | Mock DNA는 `user_supplied_transcript` evidence를 만들지 않음. 서비스가 위반 결과를 저장하지 않음 |
+| Script의 모든 Fact Claim에 Citation 또는 Unverified Flag | 완료 | `normalizeFactualClaims` + QA Fact. Demo는 출처가 없어 전부 UNVERIFIED |
+| 이전 버전 복구 가능 | 완료 | Script는 덮어쓰지 않고 version을 쌓고, 복구는 새 버전으로 복사 |
+| Blocker QA가 승인 차단 | 완료 | Fact 미매핑·Originality 고겹침·Policy 수익 보장은 `blocker`. 승인은 `INVALID_STATE_TRANSITION` |
+| 승인 시 Snapshot hash 저장 | 완료 | Script·Shot·QA를 해시해 `approvals.snapshot_hash`에 기록 |
+
+구현된 화면: `/dna`, `/studio`, `/studio/[projectId]`. Stepper의 Render·Publish는 비활성 안내만 하고 가짜 화면을 만들지 않습니다.
+
+참고 영상 Import는 YouTube URL에서 ID를 뽑아 Mock/Live Discovery Provider의 `getVideos`를 씁니다. Demo에서 검색 캐시에 없는 ID는 공개 메타데이터만 합성하며 대본을 넣지 않습니다.
+
+DNA Analyzer는 Hook 유형, 정보 배열, CTA 같은 추상 패턴만 남깁니다. 원문 문장·고유 비유를 저장하지 않습니다.
+
+QA는 Check별로 돕니다. n-gram 겹침은 결정적 계산이고, 의미 유사도 모델은 Demo에서 호출하지 않으며 그 사실을 finding에 남깁니다. Originality 점수는 법률 판단이 아닙니다.
+
+---
+
+## DEFERRED_AFTER_DEMO
+
+Phase 3 Demo를 우선하기 위해 아래는 기록만 하고 구현하지 않습니다.
+
+| 항목 | 미구현 이유 | 재개 조건 |
+|---|---|---|
+| Phase 2 Live 보완 | Research Live Gemini·YouTube Live는 코드 경로가 있으나, 운영 키·쿼터 대시보드·공유 캐시·Grounding 품질 가드레일을 Demo 범위 밖으로 둠 | 실제 키와 쿼터 한도가 있는 워크스페이스 |
+| Notebook Sync (Phase 2B) | Enterprise API·라이선스 필요. Brief는 Gemini만으로 완결 | Notebook Enterprise 사용 결정 |
+| 비용 관리 | `workflow_runs.cost`·프로젝트별 원장·예산 차단을 붙이지 않음 | Phase 4 생성 비용과 함께 |
+| 배포 보완 | Vercel/Cloud Run 파이프라인, 환경 시크릿, 헬스체크 보강 없음 | 스테이징 배포 요청 시 |
+
+---
+
 ## 4. 구조
 
 ```
@@ -130,7 +166,7 @@ Domain은 `@shorts-os/contracts`만 알고 DB나 Provider를 모릅니다. Provi
 
 **Provider 응답 캐시**: 단일 인스턴스 메모리 캐시입니다. 캐시가 비어도 동작은 같고 쿼터만 더 씁니다. Phase 2에서 공유 저장소로 옮깁니다.
 
-**typedRoutes**: Phase 2 이후 메뉴 경로가 아직 없어 Link 타입 검사와 충돌하므로 껐습니다. 라우트가 생기는 Phase에서 다시 켭니다.
+**typedRoutes**: 이후 Phase 메뉴 경로가 늘어나는 동안 Link 타입 검사와 충돌할 수 있어 꺼 두었습니다.
 
 **Playbook**: Phase 0 이전에 만든 수동 실행 가이드와 FFmpeg·브라우저 렌더러를 `/playbook`으로 옮겨 보존했습니다. 새 제품 IA에는 포함하지 않고 헤더 링크로만 접근합니다. 렌더 파이프라인은 Phase 4에서 재사용합니다.
 
@@ -150,9 +186,9 @@ Domain은 `@shorts-os/contracts`만 알고 DB나 Provider를 모릅니다. Provi
 
 ## 7. 검증 기록
 
-- 단위 테스트 76개: 점수 계산 10, Velocity 14, Topic 발견 6, YouTube Provider 9, Flag·env 10, Contract 8, dotenv 로더 1, Research Contract 4, Mock Research 6, Gemini Grounding 8
-- 통합 테스트 12개(실제 PostgreSQL): 워크스페이스 격리 4, Idempotency 1, 수집→점수→승인 1, Research Brief 6
-- 브라우저 검증 25개(프로덕션 빌드, Chrome): 로그인, 대시보드 KPI, Niche 목록·Provider 상태, 수집 실행, Topic 목록·Score Breakdown·결측 N/A, 필터, 승인, Run 기록, Settings 잠금 표시, 403 차단, Idempotency-Key 필수, 모바일 레이아웃. 콘솔·서버 오류 0건
+- 단위 테스트 96개
+- 통합 테스트 15개(실제 PostgreSQL): 워크스페이스 격리 6, Research Brief 6, Phase 3 Studio 3
+- 브라우저 검증: 로그인, 대시보드, Radar, Research, DNA Import·대본 배지, Studio Angle·Script·QA·승인. Render/Publish는 Phase 4–5라 열지 않음
 ### 공식 Seed 기준값
 
 `pnpm db:reset && pnpm db:migrate && pnpm db:seed` 직후의 값입니다. `SEED_NOW`(2026-09-03T00:00:00Z)와 Mock 시드(20260903)를 고정했으므로 환경이 달라도 같은 수가 나와야 합니다.
@@ -188,8 +224,6 @@ Dashboard 집계와 Topic Radar 목록은 같은 `listTopics(limit=100)` 결과�
 
 ---
 
-## 9. Phase 2B 진입 전 확인할 것
+## 9. Phase 2B / Live 재개 전 확인할 것
 
-1. Notebook Enterprise를 쓸지 여부(Google Cloud 프로젝트와 라이선스 필요). 쓰지 않아도 Research Brief는 Gemini API만으로 완결됩니다
-2. Search Grounding 결과의 출처 보관 정책. 현재는 URL·제목·발행처만 `sources`에 남기고 원문은 저장하지 않으며 `rights_status`는 `reference_only`입니다
-3. Gemini 예산 상한. 현재 Brief 1건당 비용을 기록하지 않습니다(`workflow_runs`의 cost 컬럼은 비어 있습니다)
+DEFERRED_AFTER_DEMO를 보세요. Notebook Enterprise, 출처 보관 정책, Gemini 예산 상한은 Demo 이후입니다.

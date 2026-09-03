@@ -3,4 +3,5 @@ export * from "./scoring";
 export * from "./niche";
 export * from "./topic";
 export * from "./research";
+export * from "./studio";
 export * from "./workspace";

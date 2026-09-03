@@ -115,6 +115,18 @@ describe("live provider normalization", () => {
   });
 });
 
+describe("MockYouTubeProvider import", () => {
+  it("검색에 없던 ID도 Demo 메타데이터를 돌려주고 대본은 넣지 않는다", async () => {
+    const provider = new MockYouTubeProvider({ seed: 7, now });
+    const result = await provider.getVideos({
+      workspaceId: "ws",
+      videoIds: ["dQw4w9wgGcQ"],
+    });
+    expect(result.videos).toHaveLength(1);
+    expect(result.videos[0]?.description).toMatch(/대본은 포함하지 않습니다/);
+  });
+});
+
 function input() {
   return {
     workspaceId: "ws",

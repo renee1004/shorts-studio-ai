@@ -94,6 +94,44 @@ export type ResearchTopicResult = {
   mode: "mock" | "live";
 };
 
+export type DnaAnalyzerInput = {
+  workspaceId: string;
+  title: string;
+  description: string | null;
+  durationSeconds: number | null;
+  transcript: string | null;
+};
+
+export type DnaAnalyzerResult = {
+  content: import("@shorts-os/contracts").DnaPatternContent;
+  modelName: string;
+  promptVersion: string;
+  mode: "mock" | "live";
+};
+
+export type AngleGeneratorInput = {
+  topicTitle: string;
+  language: string;
+  targetDurationSeconds: number;
+  briefSummary: string;
+  keyFacts: { statement: string; unverified: boolean }[];
+  unknowns: string[];
+};
+
+export type ScriptGeneratorInput = {
+  topicTitle: string;
+  language: string;
+  targetDurationSeconds: number;
+  angle: {
+    title: string;
+    hook: string;
+    promise: string;
+    outline: string[];
+  };
+  keyFacts: { statement: string; claimKey: string; unverified: boolean }[];
+  citationCount: number;
+};
+
 /**
  * Research Brain. (Phase 2A)
  * 출처를 만들어내지 않는 것이 이 인터페이스의 계약이다.
@@ -103,6 +141,27 @@ export interface ResearchProvider {
   readonly kind: "gemini";
   readonly mode: "mock" | "live";
   researchTopic(input: ResearchTopicInput): Promise<ResearchTopicResult>;
+}
+
+/** Phase 3 Content Studio. Live Gemini는 Demo 이후. */
+export interface ContentStudioProvider {
+  readonly kind: "gemini";
+  readonly mode: "mock" | "live";
+  analyzeDna(input: DnaAnalyzerInput): Promise<DnaAnalyzerResult>;
+  generateAngles(
+    input: AngleGeneratorInput,
+  ): Promise<{
+    angles: import("@shorts-os/contracts").ContentAngleDraft[];
+    modelName: string;
+    promptVersion: string;
+    mode: "mock" | "live";
+  }>;
+  generateScript(input: ScriptGeneratorInput): Promise<{
+    structured: import("@shorts-os/contracts").StructuredScript;
+    modelName: string;
+    promptVersion: string;
+    mode: "mock" | "live";
+  }>;
 }
 
 export interface NotebookProvider {

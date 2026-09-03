@@ -4,7 +4,13 @@ import { MockYouTubeProvider } from "./mock/youtube";
 import { MockResearchProvider } from "./mock/research";
 import { LiveYouTubeProvider, type QuotaLedger, type ResponseCache } from "./youtube/live";
 import { LiveResearchProvider } from "./gemini/research";
-import type { ProviderKind, ResearchProvider, YouTubeDiscoveryProvider } from "./interfaces";
+import { MockContentStudioProvider } from "./mock/studio";
+import type {
+  ContentStudioProvider,
+  ProviderKind,
+  ResearchProvider,
+  YouTubeDiscoveryProvider,
+} from "./interfaces";
 
 export type ProviderAvailability = {
   provider: ProviderKind;
@@ -91,6 +97,13 @@ export class ProviderRegistry {
     }
 
     return new MockResearchProvider();
+  }
+
+  /**
+   * Phase 3 Demo는 Mock만 연결한다. Live Gemini 대본 생성은 DEFERRED_AFTER_DEMO.
+   */
+  contentStudio(): ContentStudioProvider {
+    return new MockContentStudioProvider();
   }
 
   /** 화면에서 Provider 상태를 그대로 보여주기 위한 목록. */
