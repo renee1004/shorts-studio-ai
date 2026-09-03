@@ -18,7 +18,7 @@ export function SiteHeader() {
   const { overall, ready, reset } = useProgress();
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-border/70 bg-background">
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-3 px-4 sm:px-6">
         <Link href="/playbook" className="flex shrink-0 items-center gap-2.5">
           <span className="flex h-8 w-6 items-center justify-center rounded-md bg-primary text-[11px] font-black text-primary-foreground">

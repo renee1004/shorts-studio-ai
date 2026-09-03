@@ -115,7 +115,8 @@
         transparent 72%
       );
     background-repeat: no-repeat;
-    background-attachment: fixed;
+    /* attachment: fixed는 스크롤 프레임마다 대형 그라디언트를 다시 칠한다.
+       GPU 없는 환경에서 스크롤이 멈추므로 콘텐츠와 함께 스크롤시킨다. */
   }
   ::selection {
     background: color-mix(in oklab, var(--primary) 35%, transparent);

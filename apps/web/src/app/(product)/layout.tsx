@@ -29,7 +29,8 @@ export default async function ProductLayout({ children }: { children: React.Reac
         userEmail={user.email}
       />
       <div className="min-w-0 flex-1">
-        <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-4 border-b border-border/70 bg-background/85 px-4 backdrop-blur-xl sm:px-6">
+        {/* sticky 요소에 backdrop-filter를 걸면 소프트웨어 렌더링 환경에서 스크롤마다 블러를 다시 계산해 멈춘다. */}
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-4 border-b border-border/70 bg-background px-4 sm:px-6">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">{active.name}</p>
             <p className="font-mono text-[11px] text-muted-foreground">
