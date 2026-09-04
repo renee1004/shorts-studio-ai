@@ -102,10 +102,21 @@ ensure_postgres() {
   die "PostgreSQL이 없습니다. Docker Desktop(WSL)을 켜거나 'sudo apt install postgresql postgresql-contrib' 후 다시 실행하세요."
 }
 
+# ffmpeg는 Video Factory 렌더에만 쓰인다. 없어도 나머지 화면은 전부 동작하므로 죽이지 않는다.
+check_ffmpeg() {
+  if command -v ffmpeg >/dev/null 2>&1 && command -v ffprobe >/dev/null 2>&1; then
+    echo "ffmpeg $(ffmpeg -version | head -n 1 | cut -d' ' -f3)"
+    return
+  fi
+  printf '\n[안내] ffmpeg/ffprobe가 없어 Video Factory 렌더는 실패합니다. 다른 화면은 그대로 동작합니다.\n'
+  printf '       설치:  sudo apt install -y ffmpeg\n'
+}
+
 step "저장소: $ROOT"
 ensure_node
 ensure_pnpm
 ensure_env
+check_ffmpeg
 ensure_postgres
 
 step "의존성 설치"
@@ -117,5 +128,6 @@ pnpm db:seed
 
 step "웹 서버 시작  http://127.0.0.1:43117/login"
 echo "로그인 화면에서 'Demo 워크스페이스로 들어가기'를 누르세요."
+echo "Video Factory 렌더는 이 프로세스가 직접 처리합니다. 따로 Worker를 띄울 필요는 없습니다."
 echo "끄려면 Ctrl+C"
 exec pnpm --filter @shorts-os/web dev

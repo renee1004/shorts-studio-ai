@@ -34,7 +34,7 @@ git pull
 
 이 스크립트가 pnpm 설치, `.env` 복사, PostgreSQL 확인, 마이그레이션, Demo 시드, 개발 서버를 순서대로 합니다. 끝나면 브라우저에서 http://127.0.0.1:43117/login 을 열고 **Demo 워크스페이스로 들어가기**를 누릅니다.
 
-Node 20 이상과 PostgreSQL 16(`pgcrypto`, `citext`, `vector`)이 필요합니다. 외부 API Key는 Demo Mode에서 필요 없습니다. 단계를 직접 치고 싶다면 아래를 보세요.
+Node 20 이상과 PostgreSQL 16(`pgcrypto`, `citext`, `vector`)이 필요합니다. Video Factory 렌더에는 ffmpeg도 필요합니다(`sudo apt install -y ffmpeg`). 없으면 나머지 화면은 그대로 동작하고 렌더만 실패합니다. 외부 API Key는 Demo Mode에서 필요 없습니다. 단계를 직접 치고 싶다면 아래를 보세요.
 
 ### 1. pnpm 설치
 
