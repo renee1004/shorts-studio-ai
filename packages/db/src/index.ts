@@ -6,4 +6,5 @@ export * from "./repositories/workspaces";
 export * from "./repositories/radar";
 export * from "./repositories/research";
 export * from "./repositories/studio";
+export * from "./repositories/factory";
 export * from "./repositories/workflow";

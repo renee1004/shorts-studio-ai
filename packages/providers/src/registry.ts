@@ -5,10 +5,12 @@ import { MockResearchProvider } from "./mock/research";
 import { LiveYouTubeProvider, type QuotaLedger, type ResponseCache } from "./youtube/live";
 import { LiveResearchProvider } from "./gemini/research";
 import { MockContentStudioProvider } from "./mock/studio";
+import { MockVideoGenerationProvider, UnavailableVideoGenerationProvider } from "./mock/media";
 import type {
   ContentStudioProvider,
   ProviderKind,
   ResearchProvider,
+  VideoGenerationProvider,
   YouTubeDiscoveryProvider,
 } from "./interfaces";
 
@@ -106,6 +108,28 @@ export class ProviderRegistry {
     return new MockContentStudioProvider();
   }
 
+  /**
+   * Phase 4. Live Gemini 영상은 연결하지 않는다. 플래그가 꺼지면 수동 업로드만 가능하다.
+   */
+  videoGeneration(): VideoGenerationProvider {
+    if (!this.options.flags.videoGeneration) {
+      return new UnavailableVideoGenerationProvider();
+    }
+    if (this.options.appMode === "live") {
+      throw new DomainError(
+        "PROVIDER_NOT_CONNECTED",
+        "Live Gemini 영상 생성은 아직 연결하지 않았습니다. 클립을 직접 올리거나 Demo Mock을 쓰세요.",
+        {
+          details: {
+            provider: "gemini",
+            requirement: "APP_MODE=demo에서 videoGeneration을 켜면 Mock capability만 활성화됩니다.",
+          },
+        },
+      );
+    }
+    return new MockVideoGenerationProvider();
+  }
+
   /** 화면에서 Provider 상태를 그대로 보여주기 위한 목록. */
   availability(): ProviderAvailability[] {
     const flags = this.options.flags;
@@ -163,6 +187,20 @@ export class ProviderRegistry {
         mode: "disabled",
         reason: "PHASE_6",
         requirement: "본인 채널 OAuth 연결이 필요합니다.",
+      },
+      {
+        provider: "storage",
+        available: flags.videoGeneration,
+        mode: flags.videoGeneration ? (this.options.appMode === "live" ? "disabled" : "mock") : "disabled",
+        ...(flags.videoGeneration
+          ? {
+              requirement:
+                "글자는 후반 자막으로만 합성합니다. Live Gemini 영상은 아직 연결하지 않았습니다.",
+            }
+          : {
+              reason: "FEATURE_DISABLED",
+              requirement: "클립을 직접 올리거나 Settings에서 videoGeneration을 켜 Mock을 쓰세요.",
+            }),
       },
     ];
   }

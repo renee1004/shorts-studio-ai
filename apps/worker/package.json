@@ -15,7 +15,8 @@
     "@shorts-os/db": "workspace:*",
     "@shorts-os/domain": "workspace:*",
     "@shorts-os/observability": "workspace:*",
-    "@shorts-os/providers": "workspace:*"
+    "@shorts-os/providers": "workspace:*",
+    "@shorts-os/services": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22",

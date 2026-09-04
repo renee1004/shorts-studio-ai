@@ -1,7 +1,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { DomainError } from "@shorts-os/domain";
 import type { Database } from "../client";
-import { auditLogs, workflowRuns, workflowSteps } from "../schema";
+import { auditLogs, costEvents, workflowRuns, workflowSteps } from "../schema";
 
 export type RunStatus = "queued" | "running" | "waiting" | "succeeded" | "failed" | "cancelled";
 
@@ -171,6 +171,47 @@ export async function listWorkflowSteps(db: Database, runId: string) {
     .from(workflowSteps)
     .where(eq(workflowSteps.workflowRunId, runId))
     .orderBy(workflowSteps.sequenceNo);
+}
+
+export async function insertCostEvent(
+  db: Database,
+  input: {
+    workspaceId: string;
+    workflowRunId?: string | null;
+    provider: string;
+    service: string;
+    modelName?: string | null;
+    quantity?: string | null;
+    unit?: string | null;
+    estimatedCost?: string | null;
+    actualCost?: string | null;
+    currency?: string;
+    providerRequestId?: string | null;
+    metadata?: Record<string, unknown>;
+  },
+) {
+  await db.insert(costEvents).values({
+    workspaceId: input.workspaceId,
+    workflowRunId: input.workflowRunId ?? null,
+    provider: input.provider,
+    service: input.service,
+    modelName: input.modelName ?? null,
+    quantity: input.quantity ?? null,
+    unit: input.unit ?? null,
+    estimatedCost: input.estimatedCost ?? null,
+    actualCost: input.actualCost ?? null,
+    currency: input.currency ?? "USD",
+    providerRequestId: input.providerRequestId ?? null,
+    metadata: input.metadata ?? {},
+  });
+}
+
+export async function countCostEventsForRun(db: Database, workflowRunId: string): Promise<number> {
+  const rows = await db
+    .select({ id: costEvents.id })
+    .from(costEvents)
+    .where(eq(costEvents.workflowRunId, workflowRunId));
+  return rows.length;
 }
 
 export async function writeAuditLog(

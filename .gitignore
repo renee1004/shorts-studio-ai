@@ -37,6 +37,7 @@ yarn-error.log*
 # 렌더링 산출물과 폰트 캐시
 .cache/
 /out
+.data/
 
 # 로컬 데이터베이스
 pgdata/

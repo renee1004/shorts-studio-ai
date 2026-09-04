@@ -211,14 +211,24 @@ export interface KeywordPlanningProvider {
   >;
 }
 
+export type MediaCapabilities = {
+  provider: string;
+  mode: "mock" | "live" | "none";
+  videoClips: boolean;
+  tts: boolean;
+  music: boolean;
+  textInFootage: false;
+  requirement: string | null;
+};
+
+/**
+ * Phase 4. 글자는 푸티지에 넣지 않고 후반에서 합성한다.
+ * Live Gemini 영상은 키가 없어도 가짜 성공을 주지 않는다.
+ */
 export interface VideoGenerationProvider {
   readonly kind: "gemini";
-  getCapabilities(): Promise<{
-    maxDurationSeconds: number;
-    supportsAudio: boolean;
-    aspectRatios: string[];
-    modelName: string;
-  }>;
+  readonly mode: "mock" | "live" | "none";
+  capabilities(): MediaCapabilities;
 }
 
 /** 비밀값은 애플리케이션 테이블에 평문으로 저장하지 않는다. (스펙 Master Prompt) */

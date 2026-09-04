@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import type { FactualClaim } from "@shorts-os/contracts";
 import { Button } from "@/components/ui/button";
@@ -93,6 +94,7 @@ export function StudioProjectClient({
   const [restoreId, setRestoreId] = useState(scripts[1]?.id ?? "");
 
   const activeStep = useMemo(() => {
+    if (project.status === "rendered" || project.status === "rendering") return 5;
     if (project.status === "approved_to_render") return 5;
     if (qa.length > 0) return 4;
     if (shots.length > 0) return 3;
@@ -143,7 +145,7 @@ export function StudioProjectClient({
         ))}
       </ol>
       <p className="text-[12px] text-muted-foreground">
-        Render·Publish는 Phase 4–5입니다. 이 Demo는 QA 승인 스냅샷까지입니다.
+        Publish는 Phase 5입니다. 승인이 끝나면 Video Factory에서 합성합니다.
       </p>
 
       <section className="rounded-2xl border border-border/70 bg-card p-5">
@@ -404,7 +406,7 @@ export function StudioProjectClient({
           </p>
         ) : (
           <p className="mt-2 text-[12px] text-muted-foreground">
-            승인 시 Script·Shot·QA의 스냅샷 해시를 저장합니다. Render는 열리지 않습니다.
+            승인 시 Script·Shot·QA의 스냅샷 해시를 저장합니다. 다음 단계는 Video Factory입니다.
           </p>
         )}
         <div className="mt-3 flex flex-wrap gap-2">
@@ -450,6 +452,15 @@ export function StudioProjectClient({
               </li>
             ))}
           </ul>
+        ) : null}
+        {project.status === "approved_to_render" ||
+        project.status === "rendering" ||
+        project.status === "rendered" ? (
+          <p className="mt-4 text-sm">
+            <Link href="/factory" className="font-semibold underline underline-offset-4">
+              Video Factory에서 합성하기
+            </Link>
+          </p>
         ) : null}
       </section>
     </div>

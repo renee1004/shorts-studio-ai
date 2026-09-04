@@ -1,16 +1,24 @@
 /**
- * Cloud Run Worker 골격. Phase 4 Video Factory에서 실제 작업을 받는다.
- * 지금은 프로세스만 살아 있고 작업을 수락하지 않는다.
+ * Cloud Run Video Factory Worker. GET /health, POST /internal/render
  */
+import { createServer } from "node:http";
 import { createLogger } from "@shorts-os/observability";
+import { loadDotenv } from "@shorts-os/config/dotenv";
+import { handleWorkerRequest } from "./http";
 
-const log = createLogger();
+loadDotenv();
 
+const log = createLogger({ provider: "ffmpeg" });
 const port = Number.parseInt(process.env.PORT ?? "43118", 10);
 
-log.info({ port }, "Worker skeleton. Video jobs are not enabled until Phase 4.");
+const server = createServer((req, res) => {
+  void handleWorkerRequest(req, res);
+});
+
+server.listen(port, "0.0.0.0", () => {
+  log.info({ port }, "Video Factory worker listening");
+});
 
 process.on("SIGTERM", () => {
-  log.info("SIGTERM");
-  process.exit(0);
+  server.close(() => process.exit(0));
 });

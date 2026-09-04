@@ -65,3 +65,13 @@ export const projectStatusEnum = pgEnum("project_status", [
 ]);
 
 export const qaResultEnum = pgEnum("qa_result", ["pass", "warn", "fail", "not_run"]);
+
+export const assetTypeEnum = pgEnum("asset_type", [
+  "image",
+  "video_clip",
+  "voice",
+  "music",
+  "subtitle",
+  "thumbnail",
+  "final_video",
+]);

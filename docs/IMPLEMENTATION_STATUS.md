@@ -2,8 +2,8 @@
 
 - 기준 문서: `docs/SHORTS_INTELLIGENCE_OS_SPEC.md`
 - 최근 갱신: 2026-09-03
-- 완료 Phase: **Phase 0, Phase 1, Phase 1.5 보완, Phase 2A (Research Brain), Phase 3 Demo (DNA Library · Content Studio)**
-- 다음: Phase 4 Video Factory (승인 후). Phase 2 Live / Notebook / 비용 / 배포는 DEFERRED_AFTER_DEMO
+- 완료 Phase: **Phase 0, Phase 1, Phase 1.5 보완, Phase 2A (Research Brain), Phase 3 Demo, Phase 3.1, Phase 4 Video Factory**
+- 다음: Phase 5 Human Approval과 YouTube 게시. Phase 2 Live / Notebook / 운영 비용 대시보드 / 배포는 DEFERRED_AFTER_DEMO
 
 ---
 
@@ -111,7 +111,31 @@ Brief 상태는 인용이 하나도 없으면 `needs_review`, 있으면 `ready`�
 | Blocker QA가 승인 차단 | 완료 | Fact 미매핑·Originality 고겹침·Policy 수익 보장은 `blocker`. 승인은 `INVALID_STATE_TRANSITION` |
 | 승인 시 Snapshot hash 저장 | 완료 | Script·Shot·QA를 해시해 `approvals.snapshot_hash`에 기록 |
 
-구현된 화면: `/dna`, `/studio`, `/studio/[projectId]`. Stepper의 Render·Publish는 비활성 안내만 하고 가짜 화면을 만들지 않습니다.
+구현된 화면: `/dna`, `/studio`, `/studio/[projectId]`.
+
+---
+
+## 3.8 Phase 3.1 — Script 무결성
+
+수동 대본 수정은 `structuredScriptSchema`로 검증합니다. 빈 대본이거나 Beat가 2개 미만·16개 초과면 저장하지 않습니다. 새로 생긴 문장은 미확인 Claim이 됩니다. QA `input_hash`는 규칙 버전·목표 길이·브랜드·참고 영상 텍스트를 포함합니다.
+
+---
+
+## 3.9 Phase 4 — Video Factory
+
+승인된 Content Project를 9:16으로 합성합니다. Live Gemini 영상은 연결하지 않습니다. 생성 플래그가 꺼져 있으면 클립을 직접 올리거나 단색 Placeholder로 렌더합니다. 글자는 AI 푸티지에 넣지 않고 FFmpeg 후반에서 ASS/SRT로 태웁니다.
+
+| 완료 조건 | 상태 | 근거 |
+|---|---|---|
+| Provider가 없으면 수동 Asset 업로드로 Render 가능 | 완료 | `saveUploadedClip` + Placeholder 전략. `videoGeneration` 기본값 false |
+| 긴 작업이 Web request timeout에 의존하지 않음 | 완료 | `POST .../render`는 202. Worker `POST /internal/render` 또는 프로세스 내 비동기 실행 |
+| 같은 Render 명령의 중복 과금 방지 | 완료 | `command_hash` 부분 유니크 + Workflow Idempotency. 재사용 시 `cost_events`를 추가하지 않음 |
+| ffprobe·Loudness·checksum 검증 | 완료 | `probeMedia`, `ebur128`, `sha256`를 `render_jobs`에 저장 |
+| 실패 Shot만 재생성 가능 | 완료 | `retryFailedShots`가 새 Render version을 만들고 지정 Shot만 다시 합성 |
+
+Worker `GET /health`는 ffmpeg/ffprobe가 없으면 503입니다. `apps/worker/Dockerfile`에 Cloud Run `HEALTHCHECK`가 있습니다. 로컬 fixture 렌더는 `packages/services/src/render-engine.test.ts`입니다.
+
+화면: `/factory`, `/factory/[renderId]`. Publish Queue는 Phase 5라 열지 않습니다.
 
 참고 영상 Import는 YouTube URL에서 ID를 뽑아 Mock/Live Discovery Provider의 `getVideos`를 씁니다. Demo에서 검색 캐시에 없는 ID는 공개 메타데이터만 합성하며 대본을 넣지 않습니다.
 
@@ -138,7 +162,7 @@ Phase 3 Demo를 우선하기 위해 아래는 기록만 하고 구현하지 않�
 
 ```
 apps/web        Next.js 16 App Router. UI + /api/v1 + 서버 조립(composition root)
-apps/worker     Cloud Run용 골격. Phase 4 Video Factory에서 사용 (현재 렌더 스크립트만 보관)
+apps/worker     Video Factory Worker. `/health`와 내부 렌더 엔드포인트
 packages/config        env 검증, Feature Flag 해석
 packages/observability Pino 로거, requestId, 타이밍 로깅
 packages/contracts     Zod 스키마(API·점수·상태 전이·역할 권한)
@@ -186,8 +210,8 @@ Domain은 `@shorts-os/contracts`만 알고 DB나 Provider를 모릅니다. Provi
 
 ## 7. 검증 기록
 
-- 단위 테스트 96개
-- 통합 테스트 15개(실제 PostgreSQL): 워크스페이스 격리 6, Research Brief 6, Phase 3 Studio 3
+- 단위 테스트: Phase 4 caption/capability/fixture 포함
+- 통합 테스트: 워크스페이스 격리, Research Brief, Phase 3 Studio, Phase 4 Factory
 - 브라우저 검증: 로그인, 대시보드, Radar, Research, DNA Import·대본 배지, Studio Angle·Script·QA·승인. Render/Publish는 Phase 4–5라 열지 않음
 ### 공식 Seed 기준값
 

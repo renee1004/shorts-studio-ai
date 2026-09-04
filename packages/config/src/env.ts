@@ -31,6 +31,12 @@ const serverEnvSchema = z.object({
   GEMINI_RESEARCH_MODEL: z.string().min(1).optional(),
 
   FEATURE_FLAGS_OVERRIDE: z.string().optional(),
+
+  /** 로컬 미디어 파일 루트. Worker와 Web이 같은 경로를 봐야 한다. */
+  MEDIA_ROOT: z.string().min(1).default(".data/media"),
+  /** Video Factory Worker. 없으면 웹 프로세스가 렌더를 이어서 실행한다. */
+  WORKER_URL: z.string().url().optional(),
+  WORKER_SHARED_SECRET: z.string().min(8).default("demo-worker-secret-change-me"),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema> & {

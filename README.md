@@ -1,6 +1,6 @@
 # Shorts Intelligence OS
 
-공개 시장 신호로 Shorts 주제를 점수화하고, 사람이 승인한 뒤 제작으로 넘기는 운영 도구입니다. 지금은 **Phase 0–3 Demo**까지 열려 있습니다. Niche Radar, Topic Radar, Research, DNA Library, Content Studio를 Demo Mode로 볼 수 있습니다.
+공개 시장 신호로 Shorts 주제를 점수화하고, 사람이 승인한 뒤 제작으로 넘기는 운영 도구입니다. 지금은 **Phase 0–4 Demo**까지 열려 있습니다. Niche Radar, Topic Radar, Research, DNA Library, Content Studio, Video Factory를 Demo Mode로 볼 수 있습니다.
 
 수익을 보장하는 도구가 아닙니다. 점수는 저장된 신호와 공개된 계산식만 사용하며, 빠진 값은 0으로 채우지 않습니다.
 
@@ -96,9 +96,11 @@ sudo service postgresql start
 pnpm db:migrate
 pnpm db:seed
 pnpm --filter @shorts-os/web dev
+# Video Factory Worker (선택). 없으면 웹 프로세스가 렌더를 이어서 실행합니다.
+pnpm --filter @shorts-os/worker dev
 ```
 
-http://localhost:43117 을 열면 로그인 화면이 나옵니다.
+http://localhost:43117 을 열면 로그인 화면이 나옵니다. ffmpeg와 ffprobe가 있어야 Placeholder 합성이 됩니다.
 
 ## 품질 게이트
 
@@ -119,17 +121,18 @@ pnpm --filter @shorts-os/web build
 - **Research Brief 생성** (Phase 2A). Gemini Search Grounding으로 출처가 확인된 주장만 남기고, 버전을 쌓습니다
 - **DNA Library** (Phase 3 Demo). YouTube URL Import, 대본 유무 표시, 추상 구조 패턴
 - **Content Studio** (Phase 3 Demo). Angle 3개, Script 버전·복구, Claim 매핑, Shot List, QA, 승인 스냅샷 해시
+- **Video Factory** (Phase 4). 수동 클립 업로드 또는 자막 카드 Placeholder, FFmpeg 후반 자막, checksum·loudness, 같은 명령 중복 과금 없음
 - Settings에서 Provider 상태와 Phase 잠금 Feature Flag 확인
 
 Research는 Demo Mode에서도 돌아가지만, 웹을 읽지 않으므로 **출처와 사실 주장을 만들지 않습니다.** 구성 틀과 확인이 필요한 항목만 나옵니다. 실제 근거를 채우려면 `.env`에 `APP_MODE=live`, `GEMINI_API_KEY`, `GEMINI_RESEARCH_MODEL`을 넣으세요.
 
-아직 구현하지 않은 것: Phase 2 Live 보완, Notebook 동기화, 비용 관리, 배포 보강, Trends/Ads API, 영상 생성, YouTube 게시. 항목은 `IMPLEMENTATION_STATUS.md`의 DEFERRED_AFTER_DEMO에 적혀 있습니다.
+아직 구현하지 않은 것: Phase 2 Live 보완, Notebook 동기화, 운영 비용 대시보드, 배포 보강, Trends/Ads API, Live Gemini 영상, YouTube 게시. 항목은 `IMPLEMENTATION_STATUS.md`의 DEFERRED_AFTER_DEMO에 적혀 있습니다.
 
 ## 구조
 
 ```
 apps/web          Next.js UI + /api/v1
-apps/worker       Phase 4용 골격 (FFmpeg 렌더 스크립트)
+apps/worker       Video Factory Worker (`GET /health`, FFmpeg 합성)
 packages/config   env, Feature Flag
 packages/domain   점수·Confidence·Topic 발견
 packages/db       Drizzle 스키마, 마이그레이션, RLS

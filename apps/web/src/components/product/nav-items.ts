@@ -17,8 +17,8 @@ export const navItems = [
   { label: "Settings", href: "/settings", phase: 0 },
 ] as const;
 
-/** Research(Phase 2A)와 Content Studio(Phase 3 Demo)까지 열려 있다. */
-export const CURRENT_PHASE = 3;
+/** Content Studio(Phase 3)와 Video Factory(Phase 4)까지 열려 있다. */
+export const CURRENT_PHASE = 4;
 
 export function isNavItemActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);

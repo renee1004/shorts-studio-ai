@@ -6,7 +6,7 @@ const resolve = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 /** 패키지들이 소스를 직접 참조하므로 alias를 한곳에서 맞춘다. */
 export default defineConfig({
   test: {
-    include: ["packages/*/src/**/*.test.ts"],
+    include: ["packages/*/src/**/*.test.ts", "apps/worker/src/**/*.test.ts"],
     exclude: ["**/integration/**", "**/node_modules/**"],
   },
   resolve: {
@@ -17,6 +17,7 @@ export default defineConfig({
       "@shorts-os/domain": resolve("./packages/domain/src/index.ts"),
       "@shorts-os/observability": resolve("./packages/observability/src/index.ts"),
       "@shorts-os/providers": resolve("./packages/providers/src/index.ts"),
+      "@shorts-os/services": resolve("./packages/services/src/index.ts"),
     },
   },
 });

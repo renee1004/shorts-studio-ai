@@ -19,14 +19,23 @@ describe("feature flags", () => {
 
   it("Phase에 도달하지 않은 플래그는 켜달라고 해도 잠긴다", () => {
     const { flags, resolved } = resolveFeatureFlags({
-      workspaceFlags: { videoGeneration: true, youtubePublishing: true, autoPublish: true },
+      workspaceFlags: { youtubePublishing: true, autoPublish: true },
     });
 
-    expect(flags.videoGeneration).toBe(false);
+    expect(flags.youtubePublishing).toBe(false);
     expect(flags.autoPublish).toBe(false);
-    expect(resolved.find((flag) => flag.key === "videoGeneration")?.lockedReason).toBe(
+    expect(resolved.find((flag) => flag.key === "youtubePublishing")?.lockedReason).toBe(
       "NOT_IMPLEMENTED_IN_CURRENT_PHASE",
     );
+  });
+
+  it("Phase 4의 videoGeneration은 워크스페이스 설정으로 켤 수 있다", () => {
+    const { flags, resolved } = resolveFeatureFlags({
+      workspaceFlags: { videoGeneration: true },
+    });
+
+    expect(flags.videoGeneration).toBe(true);
+    expect(resolved.find((flag) => flag.key === "videoGeneration")?.lockedReason).toBeUndefined();
   });
 
   it("Phase 2A의 geminiResearch는 워크스페이스 설정으로 켤 수 있다", () => {

@@ -7,7 +7,7 @@ export default defineConfig({
   test: {
     include: ["src/integration/**/*.test.ts"],
     setupFiles: [resolve("./vitest.integration.setup.ts")],
-    testTimeout: 30_000,
+    testTimeout: 90_000,
     hookTimeout: 30_000,
     fileParallelism: false,
   },
@@ -20,6 +20,7 @@ export default defineConfig({
       "@shorts-os/domain": resolve("../domain/src/index.ts"),
       "@shorts-os/observability": resolve("../observability/src/index.ts"),
       "@shorts-os/providers": resolve("../providers/src/index.ts"),
+      "@shorts-os/services": resolve("./src/index.ts"),
     },
   },
 });

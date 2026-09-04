@@ -5,4 +5,5 @@ export * from "./scoring/velocity";
 export * from "./topics/discover";
 export * from "./studio/overlap";
 export * from "./studio/qa";
+export * from "./factory/captions";
 export * from "./errors";

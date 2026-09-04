@@ -3,4 +3,5 @@ export * from "./workspace";
 export * from "./radar";
 export * from "./research";
 export * from "./studio";
+export * from "./factory";
 export * from "./workflow";

@@ -37,7 +37,11 @@ export const featureFlagOverrideSchema = z.object({
 });
 
 /** 지금까지 구현된 Phase에서 켤 수 있는 플래그. 나머지는 해당 Phase까지 강제로 꺼둔다. */
-const releasableFlags = new Set<keyof FeatureFlags>(["youtubeDiscovery", "geminiResearch"]);
+const releasableFlags = new Set<keyof FeatureFlags>([
+  "youtubeDiscovery",
+  "geminiResearch",
+  "videoGeneration",
+]);
 
 export type FlagSource = "default" | "workspace" | "env";
 

@@ -138,6 +138,9 @@ importers:
       '@shorts-os/providers':
         specifier: workspace:*
         version: link:../../packages/providers
+      '@shorts-os/services':
+        specifier: workspace:*
+        version: link:../../packages/services
     devDependencies:
       '@types/node':
         specifier: ^22
