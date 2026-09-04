@@ -1,7 +1,8 @@
 FROM node:22-bookworm-slim
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ffmpeg curl \
+  && apt-get install -y --no-install-recommends ffmpeg curl fonts-noto-cjk fontconfig \
+  && fc-cache -f \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

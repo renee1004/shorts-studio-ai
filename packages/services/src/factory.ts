@@ -21,11 +21,11 @@ import {
   getRenderJob,
   getRenderJobByCommandHash,
   getRenderJobById,
-  getScript,
   insertApproval,
   insertCostEvent,
   insertMediaAsset,
   insertRenderJob,
+  latestContentProjectApproval,
   latestRenderApproval,
   latestShotClip,
   listApprovedRenderProjects,
@@ -44,6 +44,7 @@ import {
   type Database,
   type MediaAssetRow,
   type RenderJobRow,
+  type ScriptRow,
   type ShotRow,
 } from "@shorts-os/db";
 import type { VideoGenerationProvider } from "@shorts-os/providers";
@@ -61,6 +62,9 @@ function commandHash(manifest: RenderManifest): string {
     .update(
       JSON.stringify({
         scriptId: manifest.scriptId,
+        scriptVersion: manifest.scriptVersion,
+        contentApprovalId: manifest.contentApprovalId,
+        contentApprovalSnapshotHash: manifest.contentApprovalSnapshotHash,
         width: manifest.width,
         height: manifest.height,
         fps: manifest.fps,
@@ -99,11 +103,12 @@ async function buildManifest(options: {
   db: Database;
   workspaceId: string;
   project: ContentProjectRow;
-  scriptId: string;
+  script: ScriptRow;
+  approval: NonNullable<Awaited<ReturnType<typeof latestContentProjectApproval>>>;
   request: EnqueueRenderInput;
   videoCaps: MediaCapabilities;
 }): Promise<RenderManifest> {
-  const shots = await listShots(options.db, options.workspaceId, options.scriptId);
+  const shots = await listShots(options.db, options.workspaceId, options.script.id);
   if (shots.length < 2 || shots.length > 16) {
     throw new DomainError("VALIDATION_FAILED", "렌더하려면 Shot이 2–16개여야 합니다.");
   }
@@ -134,6 +139,11 @@ async function buildManifest(options: {
       strategy,
       clipAssetId: clip?.id ?? null,
       clipChecksum: clip?.checksumSha256 ?? null,
+      execution: {
+        status: clip ? "reused" : "pending",
+        assetId: clip?.id ?? null,
+        error: null,
+      },
     });
   }
 
@@ -151,7 +161,10 @@ async function buildManifest(options: {
     width: options.request.width,
     height: options.request.height,
     fps: options.request.fps,
-    scriptId: options.scriptId,
+    scriptId: options.script.id,
+    scriptVersion: options.script.version,
+    contentApprovalId: options.approval.id,
+    contentApprovalSnapshotHash: options.approval.snapshotHash,
     captionsInPost: true,
     allowPlaceholder: options.request.allowPlaceholder,
     shots: shotRows,
@@ -159,6 +172,32 @@ async function buildManifest(options: {
     musicAssetId: null,
     retryOf: null,
   });
+}
+
+async function requireApprovedScript(
+  db: Database,
+  workspaceId: string,
+  project: ContentProjectRow,
+  requestedScriptId?: string,
+) {
+  const approval = await latestContentProjectApproval(db, workspaceId, project.id);
+  if (!approval || approval.decision !== "approved" || approval.entityVersion === null) {
+    throw new DomainError(
+      "INVALID_STATE_TRANSITION",
+      "최신 Content Project 승인 레코드가 없어 렌더할 수 없습니다.",
+    );
+  }
+  const scripts = await listScripts(db, workspaceId, project.id);
+  const approvedScript = scripts.find((row) => row.version === approval.entityVersion) ?? null;
+  if (!approvedScript) {
+    throw new DomainError("CONFLICT", "승인 버전에 해당하는 Script를 찾을 수 없습니다.");
+  }
+  if (requestedScriptId && requestedScriptId !== approvedScript.id) {
+    throw new DomainError("CONFLICT", "승인되지 않은 다른 Script는 렌더할 수 없습니다.", {
+      details: { approvedScriptId: approvedScript.id },
+    });
+  }
+  return { approval, script: approvedScript };
 }
 
 async function requireProject(db: Database, workspaceId: string, projectId: string) {
@@ -185,20 +224,22 @@ export async function enqueueProjectRender(options: {
   commandHash: string;
 }> {
   const project = await requireProject(options.db, options.workspaceId, options.projectId);
-
-  const scripts = await listScripts(options.db, options.workspaceId, options.projectId);
-  const script = options.request.scriptId
-    ? await getScript(options.db, options.workspaceId, options.request.scriptId)
-    : (scripts[0] ?? null);
-  if (!script || script.contentProjectId !== options.projectId) {
-    throw new DomainError("NOT_FOUND", "렌더할 Script를 찾을 수 없습니다.");
+  if (options.request.width * 16 !== options.request.height * 9) {
+    throw new DomainError("VALIDATION_FAILED", "Render 해상도는 정확히 9:16이어야 합니다.");
   }
+  const { approval, script } = await requireApprovedScript(
+    options.db,
+    options.workspaceId,
+    project,
+    options.request.scriptId,
+  );
 
   const manifest = await buildManifest({
     db: options.db,
     workspaceId: options.workspaceId,
     project,
-    scriptId: script.id,
+    script,
+    approval,
     request: options.request,
     videoCaps: options.video.capabilities(),
   });
@@ -344,46 +385,72 @@ export async function executeRenderJob(renderJobId: string, db?: Database): Prom
     const clipPaths: string[] = [];
     let generatedShots = 0;
     for (const [index, shot] of manifest.shots.entries()) {
-      if (shot.strategy === "user_upload" && shot.clipAssetId) {
-        const asset = await getMediaAsset(system, job.workspaceId, shot.clipAssetId);
+      const reusableAssetId =
+        shot.execution.status === "succeeded" || shot.execution.status === "reused"
+          ? shot.execution.assetId
+          : null;
+      if (reusableAssetId) {
+        const asset = await getMediaAsset(system, job.workspaceId, reusableAssetId);
         if (!asset?.storageUri) {
-          throw new DomainError("VALIDATION_FAILED", `Shot ${shot.sequenceNo} 클립 파일이 없습니다.`);
+          throw new DomainError(
+            "VALIDATION_FAILED",
+            `Shot ${shot.sequenceNo} 재사용 클립 파일이 없습니다.`,
+          );
         }
         clipPaths.push(asset.storageUri);
         continue;
       }
 
-      const generated = await insertMediaAsset(system, {
-        workspaceId: job.workspaceId,
-        contentProjectId: job.contentProjectId,
-        shotId: shot.shotId,
-        assetType: "video_clip",
-        provider: shot.strategy === "generated" ? "mock_ffmpeg" : "placeholder",
-        promptText: shot.visualDescription,
-        generationParameters: { textInFootage: false, colorIndex: index },
-        status: "running",
-      });
-      const filePath = assetFilePath(job.workspaceId, generated.id);
-      await writePlaceholderClip({
-        outputPath: filePath,
-        durationSeconds: shot.durationSeconds,
-        width: manifest.width,
-        height: manifest.height,
-        fps: manifest.fps,
-        colorIndex: index,
-      });
-      const checksum = await sha256File(filePath);
-      const { stat } = await import("node:fs/promises");
-      await updateMediaAsset(system, generated.id, {
-        storageUri: filePath,
-        mimeType: "video/mp4",
-        byteSize: (await stat(filePath)).size,
-        checksumSha256: checksum,
-        status: "succeeded",
-        providerOperationId: `local-${generated.id}`,
-      });
-      if (shot.strategy === "generated") generatedShots += 1;
-      clipPaths.push(filePath);
+      let attemptAssetId: string | null = null;
+      try {
+        const generated = await insertMediaAsset(system, {
+          workspaceId: job.workspaceId,
+          contentProjectId: job.contentProjectId,
+          shotId: shot.shotId,
+          assetType: "video_clip",
+          provider: shot.strategy === "generated" ? "mock_ffmpeg" : "placeholder",
+          promptText: shot.visualDescription,
+          generationParameters: { textInFootage: false, colorIndex: index },
+          status: "running",
+        });
+        attemptAssetId = generated.id;
+        const filePath = assetFilePath(job.workspaceId, generated.id);
+        await writePlaceholderClip({
+          outputPath: filePath,
+          durationSeconds: shot.durationSeconds,
+          width: manifest.width,
+          height: manifest.height,
+          fps: manifest.fps,
+          colorIndex: index,
+        });
+        const checksum = await sha256File(filePath);
+        const { stat } = await import("node:fs/promises");
+        await updateMediaAsset(system, generated.id, {
+          storageUri: filePath,
+          mimeType: "video/mp4",
+          byteSize: (await stat(filePath)).size,
+          checksumSha256: checksum,
+          status: "succeeded",
+          providerOperationId: `local-${generated.id}`,
+        });
+        shot.clipAssetId = generated.id;
+        shot.clipChecksum = checksum;
+        shot.execution = { status: "succeeded", assetId: generated.id, error: null };
+        await updateRenderJob(system, job.id, { renderManifest: manifest });
+        if (shot.strategy === "generated") generatedShots += 1;
+        clipPaths.push(filePath);
+      } catch (error) {
+        if (attemptAssetId) {
+          await updateMediaAsset(system, attemptAssetId, { status: "failed" });
+        }
+        shot.execution = {
+          status: "failed",
+          assetId: attemptAssetId,
+          error: error instanceof Error ? error.message.slice(0, 500) : String(error),
+        };
+        await updateRenderJob(system, job.id, { renderManifest: manifest });
+        throw error;
+      }
     }
 
     if (generatedShots > 0 && job.workflowRunId) {
@@ -509,6 +576,19 @@ export async function retryFailedShots(options: {
     throw new DomainError("INVALID_STATE_TRANSITION", "실패한 Render만 Shot을 골라 다시 만들 수 있습니다.");
   }
   const manifest = renderManifestSchema.parse(previous.renderManifest);
+  const project = await requireProject(options.db, options.workspaceId, previous.contentProjectId);
+  const approved = await requireApprovedScript(
+    options.db,
+    options.workspaceId,
+    project,
+    manifest.scriptId,
+  );
+  if (
+    approved.approval.id !== manifest.contentApprovalId ||
+    approved.approval.snapshotHash !== manifest.contentApprovalSnapshotHash
+  ) {
+    throw new DomainError("CONFLICT", "원본 Render 이후 Content 승인이 변경되어 재시도할 수 없습니다.");
+  }
   const retrySet = new Set(options.shotIds);
   const unknown = options.shotIds.filter((id) => !manifest.shots.some((shot) => shot.shotId === id));
   if (unknown.length > 0) {
@@ -527,6 +607,7 @@ export async function retryFailedShots(options: {
             clipAssetId: null,
             clipChecksum: null,
             strategy: options.video.capabilities().videoClips ? "generated" : "placeholder",
+            execution: { status: "pending", assetId: null, error: null },
           }
         : shot,
     ),
@@ -640,11 +721,20 @@ export async function saveUploadedClip(options: {
   fileName: string;
 }): Promise<MediaAssetRow> {
   const project = await requireProject(options.db, options.workspaceId, options.projectId);
-  const shots = (await listScripts(options.db, options.workspaceId, options.projectId))[0];
-  if (!shots) throw new DomainError("NOT_FOUND", "Script가 없습니다.");
-  const shotRows = await listShots(options.db, options.workspaceId, shots.id);
+  if (
+    project.status !== "approved_to_render" &&
+    project.status !== "rendering" &&
+    project.status !== "rendered"
+  ) {
+    throw new DomainError(
+      "INVALID_STATE_TRANSITION",
+      "승인한 프로젝트에만 클립을 올릴 수 있습니다.",
+    );
+  }
+  const { script } = await requireApprovedScript(options.db, options.workspaceId, project);
+  const shotRows = await listShots(options.db, options.workspaceId, script.id);
   if (!shotRows.some((shot) => shot.id === options.shotId)) {
-    throw new DomainError("NOT_FOUND", "이 프로젝트의 Shot이 아닙니다.");
+    throw new DomainError("NOT_FOUND", "승인된 Script의 Shot이 아닙니다.");
   }
   if (options.bytes.byteLength > 25 * 1024 * 1024) {
     throw new DomainError("VALIDATION_FAILED", "클립은 25MB 이하여야 합니다.");
@@ -674,16 +764,6 @@ export async function saveUploadedClip(options: {
     checksumSha256: checksum,
     status: "succeeded",
   });
-  if (
-    project.status !== "approved_to_render" &&
-    project.status !== "rendering" &&
-    project.status !== "rendered"
-  ) {
-    throw new DomainError(
-      "INVALID_STATE_TRANSITION",
-      "승인한 프로젝트에만 클립을 올릴 수 있습니다.",
-    );
-  }
   return { ...asset, storageUri: filePath, checksumSha256: checksum, status: "succeeded" };
 }
 

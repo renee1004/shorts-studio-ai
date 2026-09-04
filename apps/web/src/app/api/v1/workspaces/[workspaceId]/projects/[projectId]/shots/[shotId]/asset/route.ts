@@ -7,6 +7,9 @@ export const POST = route<{ workspaceId: string; projectId: string; shotId: stri
   async ({ request, requestId, params }) => {
     const { workspaceId, projectId, shotId } = params;
     const context = await workspaceContext(workspaceId);
+    await context.run(async ({ requireRole }) => {
+      requireRole("topic:write");
+    });
     const form = await request.formData();
     const file = form.get("file");
     if (!(file instanceof File)) {
@@ -14,8 +17,7 @@ export const POST = route<{ workspaceId: string; projectId: string; shotId: stri
     }
     const bytes = Buffer.from(await file.arrayBuffer());
 
-    const asset = await context.run(async ({ db, requireRole, user }) => {
-      requireRole("topic:write");
+    const asset = await context.run(async ({ db, user }) => {
       return saveUploadedClip({
         db,
         workspaceId,

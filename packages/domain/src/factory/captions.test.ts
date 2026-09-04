@@ -23,9 +23,24 @@ describe("후반 자막", () => {
   });
 
   it("한 줄 길이를 제한한다", () => {
-    expect(wrapCaptionLines("하나 둘 셋 넷 다섯 여섯 일곱", 6, 3).every((line) => line.length <= 8)).toBe(
+    expect(wrapCaptionLines("하나 둘 셋 넷 다섯 여섯 일곱", 6).every((line) => line.length <= 8)).toBe(
       true,
     );
+  });
+
+  it("Safe Area를 넘는 긴 자막은 조용히 자르지 않는다", () => {
+    expect(() =>
+      buildAssCaptions(
+        [
+          {
+            startSeconds: 0,
+            endSeconds: 2,
+            text: "하나 둘 셋 넷 다섯 여섯 일곱 여덟 아홉 열 열하나 열둘 열셋 열넷 열다섯 열여섯",
+          },
+        ],
+        { width: 1080, height: 1920 },
+      ),
+    ).toThrow(/3줄 Safe Area/);
   });
 
   it("ffmpeg ebur128 통합 음량을 읽는다", () => {

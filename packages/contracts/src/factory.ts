@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { idempotencyKeySchema } from "./common";
 
-export const RENDER_MANIFEST_VERSION = "render.manifest.v1";
+export const RENDER_MANIFEST_VERSION = "render.manifest.v2";
 export const RENDER_ENGINE_VERSION = "ffmpeg.post.v1";
 
 export const mediaAssetTypes = [
@@ -44,32 +44,60 @@ export const renderShotManifestSchema = z.object({
   strategy: renderShotStrategySchema,
   clipAssetId: z.string().uuid().nullable(),
   clipChecksum: z.string().nullable(),
+  execution: z.object({
+    status: z.enum(["pending", "succeeded", "failed", "reused"]),
+    assetId: z.string().uuid().nullable(),
+    error: z.string().nullable(),
+  }),
 });
 export type RenderShotManifest = z.infer<typeof renderShotManifestSchema>;
 
-export const renderManifestSchema = z.object({
-  version: z.literal(RENDER_MANIFEST_VERSION),
-  engine: z.literal(RENDER_ENGINE_VERSION),
-  width: z.number().int().positive(),
-  height: z.number().int().positive(),
-  fps: z.number().int().positive(),
-  scriptId: z.string().uuid(),
-  captionsInPost: z.literal(true),
-  allowPlaceholder: z.boolean(),
-  shots: z.array(renderShotManifestSchema).min(1),
-  voiceAssetId: z.string().uuid().nullable(),
-  musicAssetId: z.string().uuid().nullable(),
-  retryOf: z.string().uuid().nullable().default(null),
-});
+export const renderManifestSchema = z
+  .object({
+    version: z.literal(RENDER_MANIFEST_VERSION),
+    engine: z.literal(RENDER_ENGINE_VERSION),
+    width: z.number().int().positive(),
+    height: z.number().int().positive(),
+    fps: z.number().int().positive(),
+    scriptId: z.string().uuid(),
+    scriptVersion: z.number().int().positive(),
+    contentApprovalId: z.string().uuid(),
+    contentApprovalSnapshotHash: z.string().min(1),
+    captionsInPost: z.literal(true),
+    allowPlaceholder: z.boolean(),
+    shots: z.array(renderShotManifestSchema).min(1),
+    voiceAssetId: z.string().uuid().nullable(),
+    musicAssetId: z.string().uuid().nullable(),
+    retryOf: z.string().uuid().nullable().default(null),
+  })
+  .superRefine((value, context) => {
+    if (value.width * 16 !== value.height * 9) {
+      context.addIssue({
+        code: "custom",
+        path: ["height"],
+        message: "Render Manifest 해상도는 정확히 9:16이어야 합니다.",
+      });
+    }
+  });
 export type RenderManifest = z.infer<typeof renderManifestSchema>;
 
-export const enqueueRenderSchema = z.object({
-  scriptId: z.string().uuid().optional(),
-  allowPlaceholder: z.boolean().default(true),
-  width: z.number().int().min(360).max(1080).default(1080),
-  height: z.number().int().min(640).max(1920).default(1920),
-  fps: z.number().int().min(24).max(30).default(30),
-});
+export const enqueueRenderSchema = z
+  .object({
+    scriptId: z.string().uuid().optional(),
+    allowPlaceholder: z.boolean().default(true),
+    width: z.number().int().min(360).max(1080).default(1080),
+    height: z.number().int().min(640).max(1920).default(1920),
+    fps: z.number().int().min(24).max(30).default(30),
+  })
+  .superRefine((value, context) => {
+    if (value.width * 16 !== value.height * 9) {
+      context.addIssue({
+        code: "custom",
+        path: ["height"],
+        message: "Render 해상도는 정확히 9:16이어야 합니다.",
+      });
+    }
+  });
 export type EnqueueRenderInput = z.infer<typeof enqueueRenderSchema>;
 
 export const retryRenderSchema = z.object({

@@ -247,12 +247,33 @@ export async function updateRenderJob(
     errorMessage: string | null;
     loudnessLufs: string | null;
     probe: Record<string, unknown>;
+    renderManifest: RenderManifest;
     workflowRunId: string | null;
     startedAt: Date;
     completedAt: Date;
   }>,
 ): Promise<void> {
   await db.update(renderJobs).set(patch).where(eq(renderJobs.id, renderId));
+}
+
+export async function latestContentProjectApproval(
+  db: Database,
+  workspaceId: string,
+  projectId: string,
+) {
+  const rows = await db
+    .select()
+    .from(approvals)
+    .where(
+      and(
+        eq(approvals.workspaceId, workspaceId),
+        eq(approvals.entityType, "content_project"),
+        eq(approvals.entityId, projectId),
+      ),
+    )
+    .orderBy(desc(approvals.decidedAt))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 export async function listShotsForScript(db: Database, workspaceId: string, scriptId: string) {

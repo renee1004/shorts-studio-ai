@@ -137,6 +137,20 @@ Worker `GET /health`는 ffmpeg/ffprobe가 없으면 503입니다. `apps/worker/D
 
 화면: `/factory`, `/factory/[renderId]`. Publish Queue는 Phase 5라 열지 않습니다.
 
+### Phase 4.1 Demo 무결성 보완
+
+- Render Manifest v2는 승인된 Script ID/version과 최신 Content Project Approval
+  ID/snapshot hash를 고정하며, command hash에도 모두 포함합니다.
+- 업로드는 권한 확인 후, 프로젝트 상태·최신 승인·승인 Script의 Shot을 파일/Asset 저장 전에
+  검증합니다.
+- Shot별 실행 상태와 생성 Asset ID를 Manifest에 기록합니다. 선택 재시도는 선택하지 않은 성공
+  Asset을 재사용하며, 상세 화면에서 재시도 Shot을 체크할 수 있습니다.
+- API와 Manifest 모두 정확한 9:16만 허용합니다.
+- ASS 합성이 실패하거나 자막이 3줄 Safe Area를 넘으면 Render 전체를 실패 처리합니다. 문자열
+  `CAPTION` 대체와 조용한 자르기는 없습니다.
+- 수동 Hook 변경도 미확인 Claim이 되며, 최종 본문에서 삭제된 Claim은 제거합니다. 공백
+  Title/Hook은 거부합니다.
+
 참고 영상 Import는 YouTube URL에서 ID를 뽑아 Mock/Live Discovery Provider의 `getVideos`를 씁니다. Demo에서 검색 캐시에 없는 ID는 공개 메타데이터만 합성하며 대본을 넣지 않습니다.
 
 DNA Analyzer는 Hook 유형, 정보 배열, CTA 같은 추상 패턴만 남깁니다. 원문 문장·고유 비유를 저장하지 않습니다.
@@ -153,8 +167,14 @@ Phase 3 Demo를 우선하기 위해 아래는 기록만 하고 구현하지 않�
 |---|---|---|
 | Phase 2 Live 보완 | Research Live Gemini·YouTube Live는 코드 경로가 있으나, 운영 키·쿼터 대시보드·공유 캐시·Grounding 품질 가드레일을 Demo 범위 밖으로 둠 | 실제 키와 쿼터 한도가 있는 워크스페이스 |
 | Notebook Sync (Phase 2B) | Enterprise API·라이선스 필요. Brief는 Gemini만으로 완결 | Notebook Enterprise 사용 결정 |
-| 비용 관리 | `workflow_runs.cost`·프로젝트별 원장·예산 차단을 붙이지 않음 | Phase 4 생성 비용과 함께 |
+| 운영 비용 관리 | Demo `cost_events` 기록 외 프로젝트별 원장·예산 차단·대시보드를 붙이지 않음 | 실제 유료 Provider 연결 시 |
 | 배포 보완 | Vercel/Cloud Run 파이프라인, 환경 시크릿, 헬스체크 보강 없음 | 스테이징 배포 요청 시 |
+
+## DEFERRED_BEFORE_DEPLOYMENT
+
+Phase 4.1은 로컬 Demo 무결성까지만 다룹니다. 별도 Cloud Run 배포와 GCS Object Storage 연동은
+구현하지 않았습니다. 배포 전에 서비스 계정 최소 권한, signed URL, Object checksum/retention,
+Worker 인증, 재시도 큐와 배포 환경의 영속 저장 경로를 설계·검증해야 합니다.
 
 ---
 
@@ -210,8 +230,9 @@ Domain은 `@shorts-os/contracts`만 알고 DB나 Provider를 모릅니다. Provi
 
 ## 7. 검증 기록
 
-- 단위 테스트: Phase 4 caption/capability/fixture 포함
-- 통합 테스트: 워크스페이스 격리, Research Brief, Phase 3 Studio, Phase 4 Factory
+- 단위 테스트 106개: Phase 4 caption/capability/fixture 포함
+- 통합 테스트 32개: 워크스페이스 격리 6, Research Brief 6, Phase 3 Studio 12,
+  Phase 4.1 Factory 8
 - 브라우저 검증: 로그인, 대시보드, Radar, Research, DNA Import·대본 배지, Studio Angle·Script·QA·승인. Render/Publish는 Phase 4–5라 열지 않음
 ### 공식 Seed 기준값
 

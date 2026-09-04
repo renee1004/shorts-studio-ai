@@ -745,6 +745,50 @@ describe("Phase 3.1 수동 수정과 QA hash 우회 방지", () => {
     ).toBe(true);
   });
 
+  it("hook 단독 수정은 Claim을 추가하고 삭제된 기존 Claim과 공백 제목을 거부한다", async () => {
+    const fixture = await createScriptForProject("Hook Claim 무결성");
+    const nextHook = "새 Hook에는 반드시 검토해야 할 수치 37이 있습니다.";
+    const edited = await patchDraftScript({
+      db: service,
+      workspaceId,
+      userId: owner,
+      scriptId: fixture.script.id,
+      hook: nextHook,
+    });
+    const structured = structuredScriptSchema.parse(edited.script.structuredScript);
+    expect(
+      structured.factualClaims.find((claim) => claim.statement === nextHook),
+    ).toMatchObject({
+      unverified: true,
+      citationIndexes: [],
+      sourceIds: [],
+    });
+    expect(
+      structured.factualClaims.every((claim) =>
+        edited.script.scriptText.includes(claim.statement),
+      ),
+    ).toBe(true);
+
+    await expect(
+      patchDraftScript({
+        db: service,
+        workspaceId,
+        userId: owner,
+        scriptId: edited.script.id,
+        title: "   ",
+      }),
+    ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    await expect(
+      patchDraftScript({
+        db: service,
+        workspaceId,
+        userId: owner,
+        scriptId: edited.script.id,
+        hook: "   ",
+      }),
+    ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+  });
+
   it("QA rule, 목표 길이, Brand, 정렬된 Reference text 변경은 QA를 stale로 만든다", async () => {
     const fixture = await createScriptForProject("QA context hash");
     const checks = [

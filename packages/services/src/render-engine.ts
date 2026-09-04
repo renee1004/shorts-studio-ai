@@ -220,55 +220,29 @@ export async function composeRender(options: {
   );
 
   const assFilter = assPath.replaceAll("\\", "/").replaceAll(":", "\\:").replaceAll("'", "\\'");
-  try {
-    await runCommand("ffmpeg", [
-      "-y",
-      "-i",
-      concatPath,
-      "-f",
-      "lavfi",
-      "-i",
-      "anullsrc=channel_layout=stereo:sample_rate=44100",
-      "-vf",
-      `ass='${assFilter}'`,
-      "-c:v",
-      "libx264",
-      "-pix_fmt",
-      "yuv420p",
-      "-preset",
-      "veryfast",
-      "-c:a",
-      "aac",
-      "-shortest",
-      "-movflags",
-      "+faststart",
-      outputPath,
-    ]);
-  } catch {
-    await runCommand("ffmpeg", [
-      "-y",
-      "-i",
-      concatPath,
-      "-f",
-      "lavfi",
-      "-i",
-      "anullsrc=channel_layout=stereo:sample_rate=44100",
-      "-vf",
-      `drawtext=text='CAPTION':fontsize=48:fontcolor=white:x=(w-text_w)/2:y=h*0.82:borderw=4`,
-      "-c:v",
-      "libx264",
-      "-pix_fmt",
-      "yuv420p",
-      "-preset",
-      "veryfast",
-      "-c:a",
-      "aac",
-      "-shortest",
-      "-movflags",
-      "+faststart",
-      outputPath,
-    ]);
-  }
+  await runCommand("ffmpeg", [
+    "-y",
+    "-i",
+    concatPath,
+    "-f",
+    "lavfi",
+    "-i",
+    "anullsrc=channel_layout=stereo:sample_rate=44100",
+    "-vf",
+    `ass='${assFilter}'`,
+    "-c:v",
+    "libx264",
+    "-pix_fmt",
+    "yuv420p",
+    "-preset",
+    "veryfast",
+    "-c:a",
+    "aac",
+    "-shortest",
+    "-movflags",
+    "+faststart",
+    outputPath,
+  ]);
 
   const probe = await probeMedia(outputPath);
   const loudnessLufs = await measureLoudness(outputPath);

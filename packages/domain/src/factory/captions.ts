@@ -8,7 +8,7 @@ export function escapeAssText(value: string): string {
     .trim();
 }
 
-export function wrapCaptionLines(text: string, maxPerLine = 14, maxLines = 3): string[] {
+export function wrapCaptionLines(text: string, maxPerLine = 14): string[] {
   const words = text.trim().split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let current = "";
@@ -22,7 +22,7 @@ export function wrapCaptionLines(text: string, maxPerLine = 14, maxLines = 3): s
     }
   }
   if (current) lines.push(current);
-  return lines.slice(0, maxLines);
+  return lines;
 }
 
 function assTime(seconds: number): string {
@@ -53,7 +53,13 @@ export function buildAssCaptions(
   const marginV = Math.round(options.height * 0.12);
   const events = cues
     .map((cue) => {
-      const lines = wrapCaptionLines(cue.text).map(escapeAssText).join("\\N");
+      const wrapped = wrapCaptionLines(cue.text);
+      if (wrapped.length > 3) {
+        throw new Error(
+          `자막이 3줄 Safe Area를 초과합니다. 줄이거나 Shot을 나누세요: ${cue.text}`,
+        );
+      }
+      const lines = wrapped.map(escapeAssText).join("\\N");
       return `Dialogue: 0,${assTime(cue.startSeconds)},${assTime(cue.endSeconds)},Default,,0,0,0,,{\\an2}${lines}`;
     })
     .join("\n");

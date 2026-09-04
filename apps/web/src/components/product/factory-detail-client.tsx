@@ -31,6 +31,11 @@ type Detail = {
       onScreenText: string;
       strategy: string;
       clipChecksum: string | null;
+      execution: {
+        status: "pending" | "succeeded" | "failed" | "reused";
+        assetId: string | null;
+        error: string | null;
+      };
     }[];
   };
   approval: { decision: string; snapshotHash: string; decidedAt: string } | null;
@@ -60,6 +65,7 @@ export function FactoryDetailClient({
   }, [generating, router, startTransition]);
 
   const [busy, setBusy] = useState<string | null>(null);
+  const [retryShots, setRetryShots] = useState<string[]>([]);
 
   async function post(path: string, body: unknown, success: string, extra?: HeadersInit) {
     setBusy(path);
@@ -75,6 +81,24 @@ export function FactoryDetailClient({
       startTransition(() => router.refresh());
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "요청이 실패했습니다.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function uploadShot(shotId: string, file: File) {
+    const path = `/api/v1/workspaces/${workspaceId}/projects/${detail.project.id}/shots/${shotId}/asset`;
+    setBusy(path);
+    try {
+      const form = new FormData();
+      form.set("file", file);
+      const response = await fetch(path, { method: "POST", body: form });
+      const payload = (await response.json()) as { error?: { message: string } };
+      if (!response.ok) throw new Error(payload.error?.message ?? "업로드에 실패했습니다.");
+      toast.success("Shot 영상을 업로드했습니다. 새 Render에서 사용됩니다.");
+      startTransition(() => router.refresh());
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "업로드가 실패했습니다.");
     } finally {
       setBusy(null);
     }
@@ -161,17 +185,22 @@ export function FactoryDetailClient({
             </Button>
             <Button
               variant="outline"
-              disabled={!canWrite || detail.job.status !== "failed" || busy !== null}
+              disabled={
+                !canWrite ||
+                detail.job.status !== "failed" ||
+                busy !== null ||
+                retryShots.length === 0
+              }
               onClick={() =>
                 post(
                   `/api/v1/workspaces/${workspaceId}/renders/${renderId}/retry`,
-                  { shotIds: detail.manifest.shots.map((shot) => shot.shotId) },
-                  "실패한 Shot을 다시 큐에 넣었습니다",
+                  { shotIds: retryShots },
+                  "선택한 Shot만 다시 큐에 넣었습니다",
                   { "idempotency-key": `retry-${crypto.randomUUID()}` },
                 )
               }
             >
-              실패 Shot 재시도
+              선택 Shot 재시도 ({retryShots.length})
             </Button>
           </div>
           {detail.job.errorMessage ? (
@@ -185,13 +214,44 @@ export function FactoryDetailClient({
         <ul className="mt-3 space-y-2">
           {detail.manifest.shots.map((shot) => (
             <li key={shot.shotId} className="rounded-2xl border border-border/70 bg-card p-4">
-              <p className="text-sm font-bold">
-                {shot.sequenceNo}. {shot.onScreenText}
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <label className="flex items-center gap-2 text-sm font-bold">
+                  <input
+                    type="checkbox"
+                    checked={retryShots.includes(shot.shotId)}
+                    disabled={detail.job.status !== "failed"}
+                    onChange={(event) =>
+                      setRetryShots((current) =>
+                        event.target.checked
+                          ? [...current, shot.shotId]
+                          : current.filter((id) => id !== shot.shotId),
+                      )
+                    }
+                  />
+                  {shot.sequenceNo}. {shot.onScreenText}
+                </label>
+                <label className="cursor-pointer rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted">
+                  Shot 영상 업로드
+                  <input
+                    type="file"
+                    accept="video/mp4,video/webm,video/quicktime"
+                    className="sr-only"
+                    disabled={!canWrite || busy !== null}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void uploadShot(shot.shotId, file);
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                </label>
+              </div>
               <p className="mt-1 font-mono text-[11px] text-muted-foreground">
-                {shot.durationSeconds}s · {shot.strategy}
+                {shot.durationSeconds}s · {shot.strategy} · {shot.execution.status}
                 {shot.clipChecksum ? ` · ${shot.clipChecksum.slice(0, 12)}…` : ""}
               </p>
+              {shot.execution.error ? (
+                <p className="mt-1 text-xs text-destructive">{shot.execution.error}</p>
+              ) : null}
             </li>
           ))}
         </ul>

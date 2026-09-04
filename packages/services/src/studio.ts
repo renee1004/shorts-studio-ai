@@ -857,6 +857,14 @@ export async function patchDraftScript(options: {
     options.workspaceId,
     script.contentProjectId,
   );
+  const nextTitle = options.title === undefined ? script.title : options.title.trim();
+  const nextHook = options.hook === undefined ? script.hook : options.hook.trim();
+  if (!nextTitle) {
+    throw new DomainError("VALIDATION_FAILED", "공백 Title은 저장할 수 없습니다.");
+  }
+  if (!nextHook) {
+    throw new DomainError("VALIDATION_FAILED", "공백 Hook은 저장할 수 없습니다.");
+  }
   const oldStructured = script.structuredScript as StructuredScript;
   const originalClaims = storedClaims(script.factualClaims);
   const requestedText = options.scriptText?.trim() ?? script.scriptText.trim();
@@ -868,7 +876,7 @@ export async function patchDraftScript(options: {
     .map((paragraph) => paragraph.trim())
     .filter(Boolean);
   const paragraphs = initialParagraphs.length > 0 ? initialParagraphs : [requestedText];
-  if (options.hook) paragraphs[0] = options.hook;
+  if (options.hook !== undefined) paragraphs[0] = nextHook;
   if (paragraphs.length < 2 || paragraphs.length > 16) {
     throw new DomainError(
       "VALIDATION_FAILED",
@@ -877,18 +885,21 @@ export async function patchDraftScript(options: {
   }
 
   const text = paragraphs.join("\n");
-  const addedClaims =
-    options.scriptText === undefined ? [] : manualClaimsAdded(script.scriptText, text);
+  const finalNormalized = normalizedSentence(text);
+  const retainedClaims = originalClaims.filter((claim) =>
+    finalNormalized.includes(normalizedSentence(claim.statement)),
+  );
+  const addedClaims = manualClaimsAdded(script.scriptText, text);
   const claimByKey = new Map(
-    [...originalClaims, ...addedClaims].map((claim) => [claim.claimKey, claim]),
+    [...retainedClaims, ...addedClaims].map((claim) => [claim.claimKey, claim]),
   );
   const claims = [...claimByKey.values()];
   const duration = oldStructured.targetDurationSeconds;
   const segment = duration / paragraphs.length;
   const structured = structuredScriptSchema.parse({
     ...oldStructured,
-    title: options.title ?? script.title,
-    hook: options.hook ?? paragraphs[0] ?? script.hook,
+    title: nextTitle,
+    hook: nextHook,
     beats: paragraphs.map((narration, index) => ({
       beatId: `b${index + 1}`,
       startSeconds: Math.round(index * segment * 100) / 100,
@@ -897,7 +908,7 @@ export async function patchDraftScript(options: {
         index === 0 ? "hook" : index === paragraphs.length - 1 ? "cta" : "content",
       narration,
       onScreenText:
-        index === 0 ? (options.hook ?? oldStructured.beats[0]?.onScreenText ?? "") : "",
+        index === 0 ? nextHook : "",
       claimKeys: claims
         .filter((claim) => narration.includes(claim.statement))
         .map((claim) => claim.claimKey),
