@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { LiveContentStudioProvider } from "./studio";
+import { geminiJsonSchema, LiveContentStudioProvider } from "./studio";
 import type { ScriptGeneratorInput } from "../interfaces";
 const input: ScriptGeneratorInput = {
   topicTitle: "책상 정리",
@@ -69,6 +69,41 @@ function provider(content: unknown) {
   });
 }
 describe("Live content studio validation", () => {
+  it("sends Gemini a supported response schema", async () => {
+    let requestBody:
+      | {
+          generationConfig: {
+            responseJsonSchema: Record<string, unknown>;
+            maxOutputTokens: number;
+          };
+        }
+      | undefined;
+    const live = new LiveContentStudioProvider({
+      apiKey: "test-key",
+      model: "test-model",
+      fetchImpl: async (_url, init) => {
+        requestBody = JSON.parse(String(init?.body));
+        return new Response(
+          JSON.stringify({
+            candidates: [
+              { content: { parts: [{ text: JSON.stringify(script) }] } },
+            ],
+          }),
+          { status: 200 },
+        );
+      },
+    });
+
+    await live.generateScript(input);
+    expect(requestBody?.generationConfig.responseJsonSchema.type).toBe(
+      "object",
+    );
+    expect(
+      requestBody?.generationConfig.responseJsonSchema.$schema,
+    ).toBeUndefined();
+    expect(requestBody?.generationConfig.maxOutputTokens).toBe(8192);
+  });
+
   it("accepts a contiguous four-beat script", async () => {
     const result = await provider(script).generateScript(input);
     expect(result.mode).toBe("live");
@@ -101,5 +136,22 @@ describe("Live content studio validation", () => {
       fetchImpl: async () => new Response("secret", { status: 429 }),
     });
     await expect(live.generateScript(input)).rejects.toThrow("429");
+  });
+});
+
+describe("geminiJsonSchema", () => {
+  it("removes unsupported schema keywords recursively", () => {
+    expect(
+      geminiJsonSchema({
+        $schema: "https://json-schema.org/draft/2020-12/schema",
+        type: "object",
+        properties: { title: { type: "string", minLength: 1 } },
+        required: ["title"],
+      }),
+    ).toEqual({
+      type: "object",
+      properties: { title: { type: "string" } },
+      required: ["title"],
+    });
   });
 });
