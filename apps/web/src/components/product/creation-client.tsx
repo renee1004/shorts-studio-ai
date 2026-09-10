@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { creationRequest, CreationRequestUncertainError } from "@/lib/creation-request";
 import { Button } from "@/components/ui/button";
 
 type Detail = {
@@ -39,23 +40,22 @@ export function CreationClient({
   const [error, setError] = useState("");
   const operation = useRef<string | null>(null);
   const running = useRef(false);
-  async function post<T>(path: string, body: unknown): Promise<T> {
-    const response = await fetch(`/api/v1/workspaces/${workspaceId}/${path}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const result = await response.json();
-    if (!response.ok || !result.data)
-      throw new Error(
-        result.error?.message ?? "처리하지 못했습니다. 다시 시도해 주세요.",
-      );
-    return result.data as T;
+  const [uncertain, setUncertain] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    const startedAt = Date.now();
+    const timer = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, [active]);
+  function post<T>(path: string, body: unknown): Promise<T> {
+    return creationRequest<T>(`/api/v1/workspaces/${workspaceId}/${path}`, body);
   }
   async function start() {
-    if (running.current || !canWrite || topic.trim().length < 2) return;
+    if (uncertain || running.current || !canWrite || topic.trim().length < 2) return;
     running.current = true;
     setError("");
+    setElapsed(0);
     setActive("start");
     try {
       operation.current ??= crypto.randomUUID();
@@ -70,6 +70,7 @@ export function CreationClient({
         setProjectId(id);
       }
       for (const stage of stages) {
+        setElapsed(0);
         setActive(stage.key);
         const result = await post<Detail>(`projects/${id}/prepare`, {
           stage: stage.key,
@@ -78,6 +79,7 @@ export function CreationClient({
         setCompleted((previous) => [...new Set([...previous, stage.key])]);
       }
       if (narrationEnabled) {
+        setElapsed(0);
         setActive("narration");
         const voice = await post<{ assetId: string }>(
           `projects/${id}/narration`,
@@ -86,6 +88,7 @@ export function CreationClient({
         setVoiceId(voice.assetId);
       }
     } catch (caught) {
+      if (caught instanceof CreationRequestUncertainError) setUncertain(true);
       setError(
         caught instanceof Error ? caught.message : "제작 중 문제가 생겼습니다.",
       );
@@ -129,6 +132,7 @@ export function CreationClient({
         <Button
           onClick={start}
           disabled={
+            uncertain ||
             !canWrite ||
             Boolean(active) ||
             topic.trim().length < 2 ||
@@ -138,13 +142,16 @@ export function CreationClient({
           className="w-full"
         >
           {active
-            ? "준비 중…"
+            ? `준비 중… ${elapsed}초`
             : error
               ? "저장된 단계부터 다시 시도"
               : "제작 준비 시작"}
         </Button>
         {!canWrite && (
           <p className="text-sm">제작 권한이 있는 멤버만 시작할 수 있습니다.</p>
+        )}
+        {uncertain && (
+          <Link className="block underline" href={projectId ? `/studio/${projectId}` : "/studio"}>저장된 작업 확인하기</Link>
         )}
         {error && (
           <p role="alert" className="text-sm text-destructive">
@@ -232,7 +239,7 @@ export function CreationClient({
         <Link href="/settings" className="underline">
           기본 설정
         </Link>
-        {started && !active && (
+        {started && !active && !uncertain && (
           <button
             className="underline"
             onClick={() => {

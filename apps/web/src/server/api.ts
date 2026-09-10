@@ -63,9 +63,13 @@ export function route<P extends Record<string, string> = Record<string, never>>(
     const requestId = request.headers.get("x-request-id") ?? newRequestId();
     const logger = createLogger({ requestId });
 
+    const startedAt = Date.now();
+    logger.info({ method: request.method, path: new URL(request.url).pathname }, "요청 시작");
     try {
       const params = ((await routeContext?.params) ?? {}) as P;
-      return await handler({ requestId, request, params });
+      const response = await handler({ requestId, request, params });
+      logger.info({ status: response.status, elapsedMs: Date.now() - startedAt }, "요청 완료");
+      return response;
     } catch (error) {
       if (isDomainError(error)) {
         logger.warn(
