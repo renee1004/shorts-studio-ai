@@ -86,7 +86,13 @@ export async function generateNarration(options: {
     options.projectId,
     options.shots,
   );
-  if (existing?.storageUri) {
+  const savedSettings = existing?.generationParameters as
+    Record<string, unknown> | undefined;
+  if (
+    existing?.storageUri &&
+    savedSettings?.model === options.model &&
+    savedSettings?.voice === options.voice
+  ) {
     try {
       if ((await sha256File(existing.storageUri)) === existing.checksumSha256)
         return existing;

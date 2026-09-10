@@ -431,6 +431,12 @@ describe("Narration and render integration", () => {
     const voice = await generateNarration(options);
     expect((await generateNarration(options)).id).toBe(voice.id);
     expect(calls).toBe(2);
+    const changedVoice = await generateNarration({
+      ...options,
+      voice: "another-voice",
+    });
+    expect(changedVoice.id).not.toBe(voice.id);
+    expect(calls).toBe(4);
     const queued = await enqueue(fixture, "with-narration");
     const rendered = await executeRenderJob(queued.renderJobId, service);
     expect(rendered.status).toBe("succeeded");
