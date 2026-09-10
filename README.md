@@ -139,7 +139,7 @@ pnpm --filter @shorts-os/web build
 - **Video Factory** (Phase 4). 수동 클립 업로드 또는 자막 카드 Placeholder, FFmpeg 후반 자막, checksum·loudness, 같은 명령 중복 과금 없음
 - Settings에서 Provider 상태와 Phase 잠금 Feature Flag 확인
 
-Research는 Demo Mode에서도 돌아가지만, 웹을 읽지 않으므로 **출처와 사실 주장을 만들지 않습니다.** 구성 틀과 확인이 필요한 항목만 나옵니다. 실제 근거를 채우려면 `.env`에 `APP_MODE=live`, `GEMINI_API_KEY`, `GEMINI_RESEARCH_MODEL`을 넣으세요.
+Research는 Demo Mode에서도 돌아가지만, 웹을 읽지 않으므로 **출처와 사실 주장을 만들지 않습니다.** 구성 틀과 확인이 필요한 항목만 나옵니다. 실제 근거를 채우려면 `APP_MODE=live`, Supabase 계정 인증, YouTube/Gemini 키와 Research 모델을 설정하세요. 자세한 설정은 [웹앱 실행 안내](docs/WEBAPP_OPERATIONS.md)를 참고하세요.
 
 아직 구현하지 않은 것: Phase 2 Live 보완, Notebook 동기화, 운영 비용 대시보드, 배포 보강, Trends/Ads API, Live Gemini 영상, YouTube 게시. 항목은 `IMPLEMENTATION_STATUS.md`의 DEFERRED_AFTER_DEMO에 적혀 있습니다.
 

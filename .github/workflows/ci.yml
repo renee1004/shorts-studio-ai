@@ -9,6 +9,22 @@ permissions:
   contents: read
 
 jobs:
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/start-docker.mjs
+      - run: node scripts/smoke-webapp.mjs
+      - name: Container logs on failure
+        if: failure()
+        run: docker compose --env-file .env.docker -f compose.webapp.yml logs --tail 100
+      - name: Stop test containers
+        if: always()
+        run: docker compose --env-file .env.docker -f compose.webapp.yml down
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -49,6 +65,7 @@ jobs:
       - run: pnpm test:integration
       - run: pnpm --filter @shorts-os/web build
       - run: pnpm --filter @shorts-os/worker build
+      - run: node scripts/smoke-worker.mjs
       - name: Production web smoke test
         run: |
           pnpm --filter @shorts-os/web start > /tmp/shorts-web.log 2>&1 &
