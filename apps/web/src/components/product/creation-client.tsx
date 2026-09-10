@@ -2,7 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { creationRequest, CreationRequestUncertainError } from "@/lib/creation-request";
+import {
+  creationRequest,
+  CreationRequestUncertainError,
+} from "@/lib/creation-request";
 import { Button } from "@/components/ui/button";
 
 type Detail = {
@@ -28,6 +31,8 @@ export function CreationClient({
   narrationEnabled: boolean;
   initialProject?: { id: string; title: string };
 }) {
+  const [mode, setMode] = useState<"topic" | "notes" | "script">("topic");
+  const [suppliedText, setSuppliedText] = useState("");
   const [topic, setTopic] = useState(initialProject?.title ?? "");
   const [started, setStarted] = useState(Boolean(initialProject));
   const [projectId, setProjectId] = useState<string | null>(
@@ -45,14 +50,21 @@ export function CreationClient({
   useEffect(() => {
     if (!active) return;
     const startedAt = Date.now();
-    const timer = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+    const timer = setInterval(
+      () => setElapsed(Math.floor((Date.now() - startedAt) / 1000)),
+      1000,
+    );
     return () => clearInterval(timer);
   }, [active]);
   function post<T>(path: string, body: unknown): Promise<T> {
-    return creationRequest<T>(`/api/v1/workspaces/${workspaceId}/${path}`, body);
+    return creationRequest<T>(
+      `/api/v1/workspaces/${workspaceId}/${path}`,
+      body,
+    );
   }
   async function start() {
-    if (uncertain || running.current || !canWrite || topic.trim().length < 2) return;
+    if (uncertain || running.current || !canWrite || topic.trim().length < 2)
+      return;
     running.current = true;
     setError("");
     setElapsed(0);
@@ -62,14 +74,23 @@ export function CreationClient({
       setStarted(true);
       let id = projectId;
       if (!id) {
-        const created = await post<{ project: { id: string } }>("creation", {
+        const created = await post<Detail>("creation", {
+          mode,
+          suppliedText,
           topic: topic.trim(),
           operationId: operation.current,
         });
         id = created.project.id;
         setProjectId(id);
+        setDetail(created);
       }
-      for (const stage of stages) {
+      if (mode === "script") {
+        setCompleted(["script"]);
+        return;
+      }
+      for (const stage of stages.filter(
+        (stage) => mode !== "notes" || stage.key !== "research",
+      )) {
         setElapsed(0);
         setActive(stage.key);
         const result = await post<Detail>(`projects/${id}/prepare`, {
@@ -113,6 +134,41 @@ export function CreationClient({
         </p>
       )}
       <section className="space-y-4 rounded-2xl border bg-card p-6">
+        {!initialProject && (
+          <label className="block text-sm font-semibold">
+            시작 방법
+            <select
+              className="mt-2 block w-full rounded-lg border bg-background p-3"
+              value={mode}
+              disabled={started || Boolean(active)}
+              onChange={(event) => setMode(event.target.value as typeof mode)}
+            >
+              <option value="topic">주제만 입력 — 새로 조사하기</option>
+              <option value="notes">정리 자료로 대본 만들기</option>
+              <option value="script">
+                완성 대본 가져오기 — AI 생성 없이 저장
+              </option>
+            </select>
+          </label>
+        )}
+        {mode !== "topic" && (
+          <label className="block text-sm font-semibold">
+            {mode === "notes" ? "NotebookLM 등에서 정리한 자료" : "완성 대본"}
+            <textarea
+              className="mt-2 w-full rounded-lg border bg-background p-3"
+              rows={8}
+              value={suppliedText}
+              maxLength={mode === "notes" ? 4000 : 12800}
+              disabled={started || Boolean(active)}
+              onChange={(event) => setSuppliedText(event.target.value)}
+            />
+            <span className="text-xs font-normal text-muted-foreground">
+              {mode === "notes"
+                ? "최대 4,000자. 새 조사는 생략하며 구성안·대본·음성 생성에는 API 사용량이 발생할 수 있습니다."
+                : "장면별 줄바꿈으로 2~16개 문단, 문단당 800자 이내. 문구를 다시 생성하지 않습니다. 음성은 저장 후 별도로 진행합니다."}
+            </span>
+          </label>
+        )}
         <label htmlFor="creation-topic" className="block text-sm font-semibold">
           영상 주제
         </label>
@@ -136,8 +192,9 @@ export function CreationClient({
             !canWrite ||
             Boolean(active) ||
             topic.trim().length < 2 ||
+            (mode !== "topic" && !suppliedText.trim()) ||
             (completed.includes("script") &&
-              (!narrationEnabled || Boolean(voiceId)))
+              (mode === "script" || !narrationEnabled || Boolean(voiceId)))
           }
           className="w-full"
         >
@@ -145,13 +202,20 @@ export function CreationClient({
             ? `준비 중… ${elapsed}초`
             : error
               ? "저장된 단계부터 다시 시도"
-              : "제작 준비 시작"}
+              : mode === "script"
+                ? "대본 저장하기"
+                : "제작 준비 시작"}
         </Button>
         {!canWrite && (
           <p className="text-sm">제작 권한이 있는 멤버만 시작할 수 있습니다.</p>
         )}
         {uncertain && (
-          <Link className="block underline" href={projectId ? `/studio/${projectId}` : "/studio"}>저장된 작업 확인하기</Link>
+          <Link
+            className="block underline"
+            href={projectId ? `/studio/${projectId}` : "/studio"}
+          >
+            저장된 작업 확인하기
+          </Link>
         )}
         {error && (
           <p role="alert" className="text-sm text-destructive">
@@ -167,11 +231,13 @@ export function CreationClient({
               <li key={stage.key} className="flex justify-between text-sm">
                 <span>{stage.label}</span>
                 <span>
-                  {completed.includes(stage.key)
-                    ? "완료"
-                    : active === stage.key
-                      ? "진행 중"
-                      : "대기"}
+                  {mode === "notes" && stage.key === "research"
+                    ? "제공 자료 사용"
+                    : completed.includes(stage.key)
+                      ? "완료"
+                      : active === stage.key
+                        ? "진행 중"
+                        : "대기"}
                 </span>
               </li>
             ))}
@@ -204,10 +270,44 @@ export function CreationClient({
               src={`/api/v1/workspaces/${workspaceId}/assets/${voiceId}/file`}
             />
           )}
+          {mode === "script" && narrationEnabled && !voiceId && (
+            <Button
+              disabled={Boolean(active) || uncertain}
+              onClick={async () => {
+                if (!projectId || running.current) return;
+                running.current = true;
+                setElapsed(0);
+                setActive("narration");
+                setError("");
+                try {
+                  const voice = await post<{ assetId: string }>(
+                    `projects/${projectId}/narration`,
+                    {},
+                  );
+                  setVoiceId(voice.assetId);
+                } catch (caught) {
+                  if (caught instanceof CreationRequestUncertainError)
+                    setUncertain(true);
+                  setError(
+                    caught instanceof Error
+                      ? caught.message
+                      : "음성을 생성하지 못했습니다.",
+                  );
+                } finally {
+                  running.current = false;
+                  setActive(null);
+                }
+              }}
+            >
+              내레이션 생성하기 · API 사용
+            </Button>
+          )}
           <h2 className="text-xl font-bold">대본과 장면 구성이 준비됐어요</h2>
           <p className="text-sm">
-            장면 {detail.shots.length}개 · 구성안 3개 중 첫 번째를 기본
-            적용했습니다. 검토 화면에서 바꿀 수 있습니다.
+            장면 {detail.shots.length}개 ·{" "}
+            {mode === "script"
+              ? "입력한 대본을 저장했습니다. 장면 시간은 균등 배분된 초안이므로 검토해 주세요."
+              : "구성안 3개 중 첫 번째를 기본 적용했습니다. 검토 화면에서 바꿀 수 있습니다."}
           </p>
           <Link
             className="inline-block rounded-lg bg-primary px-5 py-3 font-semibold text-primary-foreground"
@@ -251,6 +351,7 @@ export function CreationClient({
               setCompleted([]);
               setError("");
               setTopic("");
+              setSuppliedText("");
             }}
           >
             새 주제로 시작

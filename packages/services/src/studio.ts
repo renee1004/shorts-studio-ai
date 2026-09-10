@@ -1316,3 +1316,60 @@ async function requireProject(
 }
 
 export type { ScriptRow };
+
+/** Import a first draft without any provider call; approval remains a separate action. */
+export async function importProjectScript(options: {
+  db: Database;
+  workspaceId: string;
+  projectId: string;
+  userId: string;
+  text: string;
+}) {
+  const project = await requireProject(
+    options.db,
+    options.workspaceId,
+    options.projectId,
+  );
+  const { structureImportedScript } = await import("./imported-script");
+  const structured = structureImportedScript(
+    project.title,
+    options.text,
+    project.targetDurationSeconds,
+  );
+  const scriptText = structured.beats.map((beat) => beat.narration).join("\n");
+  const script = await insertScript(options.db, {
+    workspaceId: options.workspaceId,
+    projectId: project.id,
+    angleId: null,
+    version: await nextScriptVersion(
+      options.db,
+      options.workspaceId,
+      project.id,
+    ),
+    structured,
+    scriptText,
+    wordCount: tokenize(scriptText).length,
+    estimatedDurationSeconds: structured.estimatedDurationSeconds,
+    claims: structured.factualClaims,
+    originalitySummary: {
+      note: "사용자 제공 대본. 출처·사실관계와 장면 시간을 검토하세요.",
+    },
+    modelName: "user-import",
+    promptVersion: "script.import.v1",
+    inputHash: snapshotHash({ scriptText }),
+    createdBy: options.userId,
+  });
+  await replaceShots(
+    options.db,
+    options.workspaceId,
+    script.id,
+    shotsFromScript(structured),
+  );
+  await updateProjectStatus(
+    options.db,
+    options.workspaceId,
+    project.id,
+    "scripting",
+  );
+  return script;
+}
