@@ -36,6 +36,7 @@ export type RegistryOptions = {
   flags: FeatureFlags;
   youtubeApiKey?: string | undefined;
   geminiApiKey?: string | undefined;
+  geminiResearchTimeoutMs?: number | undefined;
   geminiResearchModel?: string | undefined;
   geminiSearchGrounding?: boolean | undefined;
   geminiContentModel?: string | undefined;
@@ -141,6 +142,7 @@ export class ProviderRegistry {
       return new LiveResearchProvider({
         apiKey: this.options.geminiApiKey,
         modelName: this.options.geminiResearchModel,
+        timeoutMs: this.options.geminiResearchTimeoutMs ?? 120_000,
         useSearchGrounding: this.options.geminiSearchGrounding ?? true,
         retry: this.options.retry,
       });

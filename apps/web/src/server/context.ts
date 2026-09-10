@@ -68,6 +68,7 @@ export async function workspaceContext(workspaceId: string): Promise<{
     flags,
     youtubeApiKey: current.YOUTUBE_API_KEY,
     geminiApiKey: current.GEMINI_API_KEY,
+    geminiResearchTimeoutMs: current.GEMINI_RESEARCH_TIMEOUT_MS,
     geminiResearchModel: current.GEMINI_RESEARCH_MODEL,
     geminiSearchGrounding: current.GEMINI_SEARCH_GROUNDING,
     geminiContentModel: current.GEMINI_CONTENT_MODEL,

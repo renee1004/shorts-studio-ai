@@ -31,6 +31,7 @@ const serverEnvSchema = z.object({
   YOUTUBE_SEARCH_DAILY_LIMIT: z.coerce.number().int().positive().default(100),
   YOUTUBE_UNITS_DAILY_LIMIT: z.coerce.number().int().positive().default(10000),
   YOUTUBE_CACHE_TTL_MINUTES: z.coerce.number().int().positive().default(360),
+  GEMINI_RESEARCH_TIMEOUT_MS: z.coerce.number().int().min(1000).max(600000).default(120000),
   PROVIDER_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
   PROVIDER_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),
 

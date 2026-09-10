@@ -5,7 +5,7 @@ import {
   type Citation,
   type ResearchBriefContent,
 } from "@shorts-os/contracts";
-import { normalizeProviderError, withRetry, withTimeout, type RetryPolicy } from "../errors";
+import { normalizeProviderError, withTimeout, type RetryPolicy } from "../errors";
 import type { ResearchProvider, ResearchTopicInput, ResearchTopicResult } from "../interfaces";
 
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta";
@@ -17,6 +17,7 @@ export type LiveResearchOptions = {
   /** Google Search quota가 없는 개발 환경에서는 false로 두고 미확인 초안만 만든다. */
   useSearchGrounding?: boolean;
   retry: RetryPolicy;
+  timeoutMs?: number;
   fetchImpl?: typeof fetch;
 };
 
@@ -57,8 +58,7 @@ export class LiveResearchProvider implements ResearchProvider {
       generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
     };
 
-    const body = await withRetry(this.options.retry, async () =>
-      withTimeout(this.options.retry.timeoutMs, "gemini", async (signal) => {
+    const body = await withTimeout(this.options.timeoutMs ?? 120_000, "gemini", async (signal) => {
         const response = await fetchImpl(url, {
           method: "POST",
           signal,
@@ -79,8 +79,7 @@ export class LiveResearchProvider implements ResearchProvider {
         }
 
         return (await response.json()) as GeminiResponse;
-      }),
-    );
+      });
 
     if (body.promptFeedback?.blockReason) {
       throw normalizeProviderError({
