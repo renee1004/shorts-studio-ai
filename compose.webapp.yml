@@ -1,0 +1,74 @@
+name: shorts-studio
+
+x-app: &app
+  image: shorts-studio:local
+  build: .
+  env_file: .env.docker
+  environment:
+    NODE_ENV: production
+    MEDIA_ROOT: /data/media
+    WORKER_URL: http://worker:43118
+  volumes:
+    - media:/data/media
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: shorts_os
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run node scripts/start-docker.mjs first}
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres -d shorts_os"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  setup:
+    <<: *app
+    command: [node, scripts/setup-container.mjs]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  worker:
+    <<: *app
+    command: [node, apps/worker/dist/server.js]
+    environment:
+      NODE_ENV: production
+      MEDIA_ROOT: /data/media
+      PORT: "43118"
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, curl, -fsS, "http://127.0.0.1:43118/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  web:
+    <<: *app
+    ports:
+      - "${WEB_BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-43117}:43117"
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+      worker:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, curl, -fsS, "http://127.0.0.1:43117/api/health"]
+      interval: 20s
+      timeout: 10s
+      start_period: 30s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  database:
+  media:

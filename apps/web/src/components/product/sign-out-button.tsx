@@ -10,7 +10,8 @@ export function SignOutButton({ className }: { className?: string }) {
     <button
       type="button"
       onClick={async () => {
-        await fetch("/api/v1/auth/demo-session", { method: "DELETE" });
+        const response = await fetch("/api/v1/auth/session", { method: "DELETE" });
+        if (!response.ok) return;
         router.push("/login");
         router.refresh();
       }}

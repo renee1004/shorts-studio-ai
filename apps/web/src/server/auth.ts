@@ -2,6 +2,8 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { DomainError } from "@shorts-os/domain";
 import { env } from "./env";
+import { SupabaseAuthClient } from "./supabase-auth";
+import { cache } from "react";
 
 export const SESSION_COOKIE = "shorts_os_session";
 
@@ -18,7 +20,9 @@ export type SessionUser = {
  */
 export interface AuthProvider {
   readonly kind: "demo" | "supabase";
-  readSession(rawCookie: string | undefined): SessionUser | null;
+  readSession(
+    rawCookie: string | undefined,
+  ): SessionUser | null | Promise<SessionUser | null>;
   issueSession(user: { id: string; email: string }): string;
 }
 
@@ -33,22 +37,27 @@ export class DemoAuthProvider implements AuthProvider {
 
   readSession(rawCookie: string | undefined): SessionUser | null {
     if (!rawCookie) return null;
-    const [payload, signature] = rawCookie.split(".");
+    const [payload, signature, extra] = rawCookie.split(".");
+    if (extra !== undefined) return null;
     if (!payload || !signature) return null;
 
     const expected = sign(payload, this.secret);
     const given = Buffer.from(signature);
     const want = Buffer.from(expected);
-    if (given.length !== want.length || !timingSafeEqual(given, want)) return null;
+    if (given.length !== want.length || !timingSafeEqual(given, want))
+      return null;
 
     try {
-      const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as {
+      const decoded = JSON.parse(
+        Buffer.from(payload, "base64url").toString("utf8"),
+      ) as {
         id?: string;
         email?: string;
         exp?: number;
       };
       if (!decoded.id || !decoded.email) return null;
-      if (decoded.exp && decoded.exp < Date.now()) return null;
+      if (typeof decoded.exp !== "number" || decoded.exp <= Date.now())
+        return null;
       return { id: decoded.id, email: decoded.email, provider: "demo" };
     } catch {
       return null;
@@ -64,23 +73,23 @@ export class DemoAuthProvider implements AuthProvider {
   }
 }
 
-/**
- * Supabase Auth 어댑터 자리. 자격증명이 없는 상태에서 가짜로 통과시키지 않고
- * 명확한 오류를 던진다. Phase 0 완료 조건은 Demo Mode 실행이다.
- */
+/** Supabase access tokens are verified by the Auth server, never decoded on trust. */
 export class SupabaseAuthProvider implements AuthProvider {
   readonly kind = "supabase" as const;
 
-  readSession(): SessionUser | null {
-    throw new DomainError(
-      "PROVIDER_NOT_CONNECTED",
-      "Supabase Auth는 SUPABASE_URL과 키가 설정된 뒤 사용할 수 있습니다.",
-      { details: { requirement: "SUPABASE_URL, SUPABASE_ANON_KEY" } },
-    );
+  readSession(rawCookie: string | undefined): Promise<SessionUser | null> {
+    const current = env();
+    return new SupabaseAuthClient(
+      current.SUPABASE_URL!,
+      current.SUPABASE_ANON_KEY!,
+    ).readSession(rawCookie);
   }
 
   issueSession(): string {
-    throw new DomainError("PROVIDER_NOT_CONNECTED", "Supabase Auth가 아직 연결되지 않았습니다.");
+    throw new DomainError(
+      "PERMISSION_DENIED",
+      "Supabase 세션은 이메일 로그인으로 발급해야 합니다.",
+    );
   }
 }
 
@@ -91,10 +100,10 @@ export function authProvider(): AuthProvider {
     : new DemoAuthProvider(current.AUTH_SESSION_SECRET);
 }
 
-export async function currentUser(): Promise<SessionUser | null> {
+export const currentUser = cache(async (): Promise<SessionUser | null> => {
   const store = await cookies();
   return authProvider().readSession(store.get(SESSION_COOKIE)?.value);
-}
+});
 
 export async function requireUser(): Promise<SessionUser> {
   const user = await currentUser();

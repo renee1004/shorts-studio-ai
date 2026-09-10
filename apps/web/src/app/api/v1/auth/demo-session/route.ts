@@ -5,9 +5,9 @@ import { SESSION_COOKIE, authProvider } from "@/server/auth";
 import { env } from "@/server/env";
 
 const bodySchema = z.object({
-  email: z.string().email(),
+  email: z.literal("demo@shorts-os.local"),
   /** Demo 워크스페이스에 바로 들어가기 위한 고정 사용자 ID */
-  userId: z.string().uuid(),
+  userId: z.literal("00000000-0000-4000-8000-000000000001"),
 });
 
 /**
@@ -15,7 +15,7 @@ const bodySchema = z.object({
  * 실서비스 인증을 흉내내지 않고, 무엇이 필요한지 오류로 알려준다.
  */
 export const POST = route(async ({ request, requestId }) => {
-  if (env().AUTH_PROVIDER !== "demo") {
+  if (env().AUTH_PROVIDER !== "demo" || env().APP_MODE !== "demo") {
     throw new DomainError(
       "FEATURE_DISABLED",
       "Demo 세션은 AUTH_PROVIDER=demo에서만 발급됩니다.",

@@ -17,6 +17,21 @@ Playbook(수동 NotebookLM 가이드)은 헤더의 **Playbook** 링크 또는 `/
 
 ## 로컬에서 실행하기
 
+### Docker Desktop으로 웹앱 전체 실행
+
+Node 22와 Docker Desktop이 있는 PC에서 저장소 폴더를 열고 실행합니다.
+
+```bash
+node scripts/start-docker.mjs
+```
+
+처음 실행하면 개별 비밀번호를 만들고 웹앱·PostgreSQL·영상 Worker를 빌드합니다.
+완료 후 http://localhost:43117 에서 Demo 로그인으로 작업할 수 있습니다.
+DB와 업로드·완성 영상은 Docker 볼륨에 유지됩니다. 운영 로그인과 서버 배포 조건은
+[웹앱 실행 안내](docs/WEBAPP_OPERATIONS.md)를 참고하세요.
+
+### Docker 없이 직접 설치
+
 **`bash`는 명령 앞에 붙이지 마세요.** `bash pnpm ...` 이나 `bash DATABASE_URL=...` 는 파일이 없다고 나옵니다. 아래처럼 저장소 폴더에서 한 줄만 실행하면 됩니다.
 
 ```bash

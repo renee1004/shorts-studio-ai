@@ -1,20 +1,6 @@
 import type { Metadata } from "next";
-import { Noto_Sans_KR, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
-
-const sans = Noto_Sans_KR({
-  variable: "--font-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "700", "900"],
-  display: "swap",
-});
-
-const mono = JetBrains_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: {
@@ -29,7 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="ko"
-      className={`dark ${sans.variable} ${mono.variable} h-full antialiased`}
+      className="dark h-full antialiased"
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col">
