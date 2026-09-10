@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function LoginPage() {
   const user = await currentUser();
-  if (user) redirect("/dashboard");
+  if (user) redirect("/create");
 
   const mode = env().AUTH_PROVIDER;
 

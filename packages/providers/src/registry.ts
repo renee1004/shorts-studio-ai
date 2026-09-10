@@ -2,10 +2,18 @@ import { DomainError } from "@shorts-os/domain";
 import type { FeatureFlags } from "@shorts-os/config";
 import { MockYouTubeProvider } from "./mock/youtube";
 import { MockResearchProvider } from "./mock/research";
-import { LiveYouTubeProvider, type QuotaLedger, type ResponseCache } from "./youtube/live";
+import {
+  LiveYouTubeProvider,
+  type QuotaLedger,
+  type ResponseCache,
+} from "./youtube/live";
 import { LiveResearchProvider } from "./gemini/research";
 import { MockContentStudioProvider } from "./mock/studio";
-import { MockVideoGenerationProvider, UnavailableVideoGenerationProvider } from "./mock/media";
+import { LiveContentStudioProvider } from "./gemini/studio";
+import {
+  MockVideoGenerationProvider,
+  UnavailableVideoGenerationProvider,
+} from "./mock/media";
 import type {
   ContentStudioProvider,
   ProviderKind,
@@ -29,6 +37,7 @@ export type RegistryOptions = {
   youtubeApiKey?: string | undefined;
   geminiApiKey?: string | undefined;
   geminiResearchModel?: string | undefined;
+  geminiContentModel?: string | undefined;
   quota: QuotaLedger;
   cache: ResponseCache;
   cacheTtlMinutes: number;
@@ -46,16 +55,30 @@ export class ProviderRegistry {
 
   youtubeDiscovery(): YouTubeDiscoveryProvider {
     if (!this.options.flags.youtubeDiscovery) {
-      throw new DomainError("FEATURE_DISABLED", "YouTube 수집 기능이 꺼져 있습니다.", {
-        details: { provider: "youtube_data", requirement: "Settings에서 youtubeDiscovery를 켜세요." },
-      });
+      throw new DomainError(
+        "FEATURE_DISABLED",
+        "YouTube 수집 기능이 꺼져 있습니다.",
+        {
+          details: {
+            provider: "youtube_data",
+            requirement: "Settings에서 youtubeDiscovery를 켜세요.",
+          },
+        },
+      );
     }
 
     if (this.options.appMode === "live") {
       if (!this.options.youtubeApiKey) {
-        throw new DomainError("PROVIDER_NOT_CONNECTED", "YouTube API Key가 없습니다.", {
-          details: { provider: "youtube_data", requirement: "YOUTUBE_API_KEY를 설정하세요." },
-        });
+        throw new DomainError(
+          "PROVIDER_NOT_CONNECTED",
+          "YouTube API Key가 없습니다.",
+          {
+            details: {
+              provider: "youtube_data",
+              requirement: "YOUTUBE_API_KEY를 설정하세요.",
+            },
+          },
+        );
       }
       return new LiveYouTubeProvider({
         apiKey: this.options.youtubeApiKey,
@@ -68,28 +91,51 @@ export class ProviderRegistry {
     }
 
     return new MockYouTubeProvider({
-      ...(this.options.mockSeed !== undefined ? { seed: this.options.mockSeed } : {}),
+      ...(this.options.mockSeed !== undefined
+        ? { seed: this.options.mockSeed }
+        : {}),
       ...(this.options.now ? { now: this.options.now() } : {}),
     });
   }
 
   research(): ResearchProvider {
     if (!this.options.flags.geminiResearch) {
-      throw new DomainError("FEATURE_DISABLED", "Research Brain이 꺼져 있습니다.", {
-        details: { provider: "gemini", requirement: "Settings에서 geminiResearch를 켜세요." },
-      });
+      throw new DomainError(
+        "FEATURE_DISABLED",
+        "Research Brain이 꺼져 있습니다.",
+        {
+          details: {
+            provider: "gemini",
+            requirement: "Settings에서 geminiResearch를 켜세요.",
+          },
+        },
+      );
     }
 
     if (this.options.appMode === "live") {
       if (!this.options.geminiApiKey) {
-        throw new DomainError("PROVIDER_NOT_CONNECTED", "Gemini API Key가 없습니다.", {
-          details: { provider: "gemini", requirement: "GEMINI_API_KEY를 설정하세요." },
-        });
+        throw new DomainError(
+          "PROVIDER_NOT_CONNECTED",
+          "Gemini API Key가 없습니다.",
+          {
+            details: {
+              provider: "gemini",
+              requirement: "GEMINI_API_KEY를 설정하세요.",
+            },
+          },
+        );
       }
       if (!this.options.geminiResearchModel) {
-        throw new DomainError("PROVIDER_NOT_CONNECTED", "Research 모델명이 없습니다.", {
-          details: { provider: "gemini", requirement: "GEMINI_RESEARCH_MODEL을 설정하세요." },
-        });
+        throw new DomainError(
+          "PROVIDER_NOT_CONNECTED",
+          "Research 모델명이 없습니다.",
+          {
+            details: {
+              provider: "gemini",
+              requirement: "GEMINI_RESEARCH_MODEL을 설정하세요.",
+            },
+          },
+        );
       }
       return new LiveResearchProvider({
         apiKey: this.options.geminiApiKey,
@@ -102,9 +148,21 @@ export class ProviderRegistry {
   }
 
   /**
-   * Phase 3 Demo는 Mock만 연결한다. Live Gemini 대본 생성은 DEFERRED_AFTER_DEMO.
+   * Demo는 Mock, Live는 명시적으로 설정된 Gemini 대본 모델을 사용한다.
    */
   contentStudio(): ContentStudioProvider {
+    if (this.options.appMode === "live") {
+      if (!this.options.geminiApiKey || !this.options.geminiContentModel) {
+        throw new DomainError(
+          "PROVIDER_NOT_CONNECTED",
+          "실제 대본 생성에는 Gemini 키와 GEMINI_CONTENT_MODEL 설정이 필요합니다.",
+        );
+      }
+      return new LiveContentStudioProvider({
+        apiKey: this.options.geminiApiKey,
+        model: this.options.geminiContentModel,
+      });
+    }
     return new MockContentStudioProvider();
   }
 
@@ -122,7 +180,8 @@ export class ProviderRegistry {
         {
           details: {
             provider: "gemini",
-            requirement: "APP_MODE=demo에서 videoGeneration을 켜면 Mock capability만 활성화됩니다.",
+            requirement:
+              "APP_MODE=demo에서 videoGeneration을 켜면 Mock capability만 활성화됩니다.",
           },
         },
       );
@@ -133,7 +192,8 @@ export class ProviderRegistry {
   /** 화면에서 Provider 상태를 그대로 보여주기 위한 목록. */
   availability(): ProviderAvailability[] {
     const flags = this.options.flags;
-    const youtubeLiveReady = this.options.appMode === "live" && Boolean(this.options.youtubeApiKey);
+    const youtubeLiveReady =
+      this.options.appMode === "live" && Boolean(this.options.youtubeApiKey);
     const geminiLiveReady =
       this.options.appMode === "live" &&
       Boolean(this.options.geminiApiKey) &&
@@ -143,15 +203,26 @@ export class ProviderRegistry {
       {
         provider: "youtube_data",
         available: flags.youtubeDiscovery,
-        mode: flags.youtubeDiscovery ? (youtubeLiveReady ? "live" : "mock") : "disabled",
+        mode: flags.youtubeDiscovery
+          ? youtubeLiveReady
+            ? "live"
+            : "mock"
+          : "disabled",
         ...(youtubeLiveReady
           ? {}
-          : { requirement: "APP_MODE=live와 YOUTUBE_API_KEY를 설정하면 실제 데이터로 바뀝니다." }),
+          : {
+              requirement:
+                "APP_MODE=live와 YOUTUBE_API_KEY를 설정하면 실제 데이터로 바뀝니다.",
+            }),
       },
       {
         provider: "gemini",
         available: flags.geminiResearch,
-        mode: flags.geminiResearch ? (geminiLiveReady ? "live" : "mock") : "disabled",
+        mode: flags.geminiResearch
+          ? geminiLiveReady
+            ? "live"
+            : "mock"
+          : "disabled",
         ...(flags.geminiResearch ? {} : { reason: "FEATURE_DISABLED" }),
         ...(geminiLiveReady
           ? {}
@@ -165,7 +236,8 @@ export class ProviderRegistry {
         available: false,
         mode: "disabled",
         reason: "PHASE_2",
-        requirement: "Gemini Notebook Enterprise 라이선스와 Google Cloud 프로젝트가 필요합니다.",
+        requirement:
+          "Gemini Notebook Enterprise 라이선스와 Google Cloud 프로젝트가 필요합니다.",
       },
       {
         provider: "google_trends",
@@ -179,7 +251,8 @@ export class ProviderRegistry {
         available: false,
         mode: "disabled",
         reason: "DEVELOPER_TOKEN_REQUIRED",
-        requirement: "승인된 개발자 토큰 또는 Keyword Planner CSV Import가 필요합니다.",
+        requirement:
+          "승인된 개발자 토큰 또는 Keyword Planner CSV Import가 필요합니다.",
       },
       {
         provider: "youtube_analytics",
@@ -191,7 +264,11 @@ export class ProviderRegistry {
       {
         provider: "storage",
         available: flags.videoGeneration,
-        mode: flags.videoGeneration ? (this.options.appMode === "live" ? "disabled" : "mock") : "disabled",
+        mode: flags.videoGeneration
+          ? this.options.appMode === "live"
+            ? "disabled"
+            : "mock"
+          : "disabled",
         ...(flags.videoGeneration
           ? {
               requirement:
@@ -199,7 +276,8 @@ export class ProviderRegistry {
             }
           : {
               reason: "FEATURE_DISABLED",
-              requirement: "클립을 직접 올리거나 Settings에서 videoGeneration을 켜 Mock을 쓰세요.",
+              requirement:
+                "클립을 직접 올리거나 Settings에서 videoGeneration을 켜 Mock을 쓰세요.",
             }),
       },
     ];

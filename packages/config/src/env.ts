@@ -36,6 +36,7 @@ const serverEnvSchema = z.object({
 
   GEMINI_API_KEY: z.string().min(1).optional(),
   GEMINI_RESEARCH_MODEL: z.string().min(1).optional(),
+  GEMINI_CONTENT_MODEL: z.string().min(1).optional(),
 
   FEATURE_FLAGS_OVERRIDE: z.string().optional(),
 
