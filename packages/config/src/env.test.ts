@@ -3,6 +3,18 @@ import { describe, expect, it } from "vitest";
 import { loadServerEnv } from "./env";
 
 describe("deployment environment", () => {
+  it("allows authenticated live creation without a YouTube discovery key", () => {
+    const env = loadServerEnv({
+      DATABASE_URL: "postgres://localhost/test",
+      APP_MODE: "live",
+      AUTH_PROVIDER: "supabase",
+      SUPABASE_URL: "https://example.supabase.co",
+      SUPABASE_ANON_KEY: "test-anon",
+      GEMINI_API_KEY: "test-gemini",
+    });
+    expect(env.APP_MODE).toBe("live");
+    expect(env.YOUTUBE_API_KEY).toBeUndefined();
+  });
   it("accepts the checked-in example including blank optional values", () => {
     const source = Object.fromEntries(
       readFileSync(new URL("../../../.env.example", import.meta.url), "utf8")

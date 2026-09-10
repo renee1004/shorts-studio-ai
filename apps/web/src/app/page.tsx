@@ -5,5 +5,5 @@ export const dynamic = "force-dynamic";
 
 export default async function RootPage() {
   const user = await currentUser();
-  redirect(user ? "/dashboard" : "/login");
+  redirect(user ? "/create" : "/login");
 }
