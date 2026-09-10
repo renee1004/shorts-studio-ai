@@ -66,6 +66,17 @@ async function ensureLocalAppRole(client: ReturnType<typeof postgres>): Promise<
 
     grant authenticated to app_user;
   `);
+  // Container setup generates a unique application password; preserve the
+  // existing role identity while synchronizing its configured credential.
+  if (process.env.DATABASE_APP_URL) {
+    const appUrl = new URL(process.env.DATABASE_APP_URL);
+    if (decodeURIComponent(appUrl.username) !== "app_user") {
+      throw new Error("DB_TARGET=local의 DATABASE_APP_URL 사용자 이름은 app_user여야 합니다.");
+    }
+    const password = decodeURIComponent(appUrl.password);
+    if (!password) throw new Error("DATABASE_APP_URL에 비밀번호가 필요합니다.");
+    await client.unsafe(`alter role app_user password '${password.replace(/'/g, "''")}'`);
+  }
 }
 
 /** 역할을 새로 만든 경우 기존 테이블 권한이 비어 있으므로 함께 다시 부여한다. */

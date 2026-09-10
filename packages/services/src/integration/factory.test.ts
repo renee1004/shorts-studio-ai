@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { readdir, rm } from "node:fs/promises";
 import {
   closePools,
+  claimQueuedRenderJob,
   countCostEventsForRun,
   getRenderJob,
   insertApproval,
@@ -336,6 +337,17 @@ describe("Phase 4.1 Demo render integrity", () => {
       unselected.execution.assetId,
     );
   }, 90_000);
+
+  it("동시에 받은 렌더 요청은 하나만 실행 권한을 얻는다", async () => {
+    const fixture = await createFixture();
+    const render = await enqueue(fixture, "concurrent-claim");
+    const claims = await Promise.all([
+      claimQueuedRenderJob(service, render.renderJobId),
+      claimQueuedRenderJob(service, render.renderJobId),
+    ]);
+    expect(claims.filter(Boolean)).toHaveLength(1);
+    expect((await getRenderJob(service, workspaceId, render.renderJobId))?.status).toBe("running");
+  });
 
   it("정상 Render는 idempotent하고 checksum 승인까지 된다", async () => {
     const fixture = await createFixture();

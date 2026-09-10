@@ -17,6 +17,21 @@ Playbook(수동 NotebookLM 가이드)은 헤더의 **Playbook** 링크 또는 `/
 
 ## 로컬에서 실행하기
 
+### Docker Desktop으로 웹앱 전체 실행
+
+Node 22와 Docker Desktop이 있는 PC에서 저장소 폴더를 열고 실행합니다.
+
+```bash
+node scripts/start-docker.mjs
+```
+
+처음 실행하면 개별 비밀번호를 만들고 웹앱·PostgreSQL·영상 Worker를 빌드합니다.
+완료 후 http://localhost:43117 에서 Demo 로그인으로 작업할 수 있습니다.
+DB와 업로드·완성 영상은 Docker 볼륨에 유지됩니다. 운영 로그인과 서버 배포 조건은
+[웹앱 실행 안내](docs/WEBAPP_OPERATIONS.md)를 참고하세요.
+
+### Docker 없이 직접 설치
+
 **`bash`는 명령 앞에 붙이지 마세요.** `bash pnpm ...` 이나 `bash DATABASE_URL=...` 는 파일이 없다고 나옵니다. 아래처럼 저장소 폴더에서 한 줄만 실행하면 됩니다.
 
 ```bash
@@ -124,7 +139,7 @@ pnpm --filter @shorts-os/web build
 - **Video Factory** (Phase 4). 수동 클립 업로드 또는 자막 카드 Placeholder, FFmpeg 후반 자막, checksum·loudness, 같은 명령 중복 과금 없음
 - Settings에서 Provider 상태와 Phase 잠금 Feature Flag 확인
 
-Research는 Demo Mode에서도 돌아가지만, 웹을 읽지 않으므로 **출처와 사실 주장을 만들지 않습니다.** 구성 틀과 확인이 필요한 항목만 나옵니다. 실제 근거를 채우려면 `.env`에 `APP_MODE=live`, `GEMINI_API_KEY`, `GEMINI_RESEARCH_MODEL`을 넣으세요.
+Research는 Demo Mode에서도 돌아가지만, 웹을 읽지 않으므로 **출처와 사실 주장을 만들지 않습니다.** 구성 틀과 확인이 필요한 항목만 나옵니다. 실제 근거를 채우려면 `APP_MODE=live`, Supabase 계정 인증, YouTube/Gemini 키와 Research 모델을 설정하세요. 자세한 설정은 [웹앱 실행 안내](docs/WEBAPP_OPERATIONS.md)를 참고하세요.
 
 아직 구현하지 않은 것: Phase 2 Live 보완, Notebook 동기화, 운영 비용 대시보드, 배포 보강, Trends/Ads API, Live Gemini 영상, YouTube 게시. 항목은 `IMPLEMENTATION_STATUS.md`의 DEFERRED_AFTER_DEMO에 적혀 있습니다.
 

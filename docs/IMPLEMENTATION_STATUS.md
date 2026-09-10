@@ -1,5 +1,13 @@
 # Implementation Status
 
+## 2026-09-10 웹앱 실행 보완
+
+최신 실행 방법과 연결 조건은 [WEBAPP_OPERATIONS.md](WEBAPP_OPERATIONS.md)를 참고하세요.
+아래 기존 Phase 기록에 더해 빈 환경변수 처리, Supabase 이메일 로그인, DB 사용자 전달,
+외부 폰트 없는 빌드, Worker 운영 실행, 렌더 실행권한/대기열, Docker 전체 구성과 CI를 추가했습니다.
+단위 테스트는 115개입니다. Supabase 계정 연결 및 실제 서버 배포는 별도 환경 설정이 필요합니다.
+AI 영상 생성·YouTube 게시·예산 대시보드는 아직 완료되지 않았습니다.
+
 - 기준 문서: `docs/SHORTS_INTELLIGENCE_OS_SPEC.md`
 - 최근 갱신: 2026-09-03
 - 완료 Phase: **Phase 0, Phase 1, Phase 1.5 보완, Phase 2A (Research Brain), Phase 3 Demo, Phase 3.1, Phase 4 Video Factory**

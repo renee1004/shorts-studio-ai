@@ -1,0 +1,75 @@
+name: Webapp quality gates
+on:
+  push:
+    branches: [main, "fix/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/start-docker.mjs
+      - run: node scripts/smoke-webapp.mjs
+      - name: Container logs on failure
+        if: failure()
+        run: docker compose --env-file .env.docker -f compose.webapp.yml logs --tail 100
+      - name: Stop test containers
+        if: always()
+        run: docker compose --env-file .env.docker -f compose.webapp.yml down
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: shorts_os
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d shorts_os"
+          --health-interval 3s --health-timeout 5s --health-retries 30
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/shorts_os
+      DATABASE_APP_URL: postgresql://app_user:app_user@127.0.0.1:5432/shorts_os
+      APP_MODE: demo
+      AUTH_PROVIDER: demo
+      AUTH_SESSION_SECRET: ci-only-not-for-deployment-93fd76c80442ab17
+      MEDIA_ROOT: /tmp/shorts-ci-media
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-noto-cjk
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm db:migrate
+      - run: pnpm db:seed
+      - run: pnpm test:integration
+      - run: pnpm --filter @shorts-os/web build
+      - run: pnpm --filter @shorts-os/worker build
+      - run: node scripts/smoke-worker.mjs
+      - name: Production web smoke test
+        run: |
+          pnpm --filter @shorts-os/web start > /tmp/shorts-web.log 2>&1 &
+          node scripts/smoke-webapp.mjs
+      - name: Web logs on failure
+        if: failure()
+        run: cat /tmp/shorts-web.log 2>/dev/null || true

@@ -43,7 +43,16 @@ export async function withUserSession<T>(
 ): Promise<T> {
   const db = drizzle(pool(connectionString), { schema, casing: "snake_case" });
   return db.transaction(async (tx) => {
-    await tx.execute(sql`select set_config('app.current_user_id', ${userId}, true)`);
+    await tx.execute(
+      sql`select set_config('app.current_user_id', ${userId}, true)`,
+    );
+    // Supabase auth.uid() reads JWT settings; the local shim reads app.current_user_id.
+    await tx.execute(
+      sql`select set_config('request.jwt.claim.sub', ${userId}, true)`,
+    );
+    await tx.execute(
+      sql`select set_config('request.jwt.claims', ${JSON.stringify({ sub: userId, role: "authenticated" })}, true)`,
+    );
     await tx.execute(sql`set local role authenticated`);
     return fn(tx as unknown as Database);
   });
