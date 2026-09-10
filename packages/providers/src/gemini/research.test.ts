@@ -148,3 +148,18 @@ describe("research request budget", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });
+
+
+describe("incomplete research diagnostics", () => {
+  it.each(["MAX_TOKENS", "SAFETY", "STOP"])("reports %s without repeating a paid request", async (finishReason) => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({
+      candidates: [{ finishReason, content: { parts: [{ thought: true, text: "private reasoning" }] } }],
+      usageMetadata: { totalTokenCount: 100, thoughtsTokenCount: 90 },
+    })));
+    const provider = new LiveResearchProvider({ apiKey: "private-key", modelName: "test-model", retry: { timeoutMs: 15000, maxAttempts: 3, baseDelayMs: 0 }, fetchImpl });
+    await expect(provider.researchTopic({ workspaceId: "ws", topicTitle: "work", nicheName: "Work", angleHint: null, language: "ko", maxSources: 5 })).rejects.toMatchObject({
+      options: { retryable: false, details: { finishReason, totalTokenCount: 100, model: "test-model" } },
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+});

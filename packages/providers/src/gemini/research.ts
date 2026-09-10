@@ -1,3 +1,4 @@
+import { DomainError } from "@shorts-os/domain";
 import {
   RESEARCH_PROMPT_VERSION,
   dropUngroundedFacts,
@@ -22,7 +23,8 @@ export type LiveResearchOptions = {
 };
 
 type GeminiCandidate = {
-  content?: { parts?: { text?: string }[] };
+  finishReason?: string;
+  content?: { parts?: { text?: string; thought?: boolean }[] };
   groundingMetadata?: {
     groundingChunks?: { web?: { uri?: string; title?: string; domain?: string } }[];
   };
@@ -30,6 +32,7 @@ type GeminiCandidate = {
 
 type GeminiResponse = {
   candidates?: GeminiCandidate[];
+  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number; totalTokenCount?: number };
   promptFeedback?: { blockReason?: string };
   error?: { message?: string; status?: string };
 };
@@ -81,21 +84,31 @@ export class LiveResearchProvider implements ResearchProvider {
         return (await response.json()) as GeminiResponse;
       });
 
-    if (body.promptFeedback?.blockReason) {
-      throw normalizeProviderError({
-        provider: "gemini",
-        code: body.promptFeedback.blockReason,
-        message: `Gemini가 요청을 거절했습니다: ${body.promptFeedback.blockReason}`,
-      });
-    }
-
     const candidate = body.candidates?.[0];
-    const text = candidate?.content?.parts?.map((part) => part.text ?? "").join("") ?? "";
-    if (text.trim().length === 0) {
-      throw normalizeProviderError({
-        provider: "gemini",
-        code: "EMPTY_RESPONSE",
-        message: "Gemini가 빈 응답을 반환했습니다.",
+    const text = candidate?.content?.parts
+      ?.filter((part) => !part.thought)
+      .map((part) => part.text ?? "").join("") ?? "";
+    const reason = body.promptFeedback?.blockReason ?? candidate?.finishReason;
+    // Never log generated text, prompts, credentials, or free-form provider messages.
+    const safeReason = typeof reason === "string" && /^[A-Z_]{1,64}$/.test(reason)
+      ? reason : "UNKNOWN";
+    if (body.promptFeedback?.blockReason || (reason && reason !== "STOP") || !text.trim()) {
+      const tokenCounts: Record<string, number> = {};
+      for (const key of ["promptTokenCount", "candidatesTokenCount", "thoughtsTokenCount", "totalTokenCount"] as const) {
+        const count = body.usageMetadata?.[key];
+        if (typeof count === "number" && Number.isFinite(count) && count >= 0) tokenCounts[key] = count;
+      }
+      const message = safeReason === "MAX_TOKENS"
+        ? "Gemini 조사 응답이 출력 한도에 도달해 완성되지 않았습니다."
+        : `Gemini가 완성된 조사 결과를 반환하지 않았습니다 (종료 사유: ${safeReason}).`;
+      throw new DomainError("PROVIDER_UNAVAILABLE", message, {
+        retryable: false,
+        details: {
+          provider: "gemini", providerCode: "INCOMPLETE_RESPONSE",
+          model: this.options.modelName, finishReason: safeReason,
+          candidateCount: body.candidates?.length ?? 0,
+          searchGrounding: useSearchGrounding, ...tokenCounts,
+        },
       });
     }
 
