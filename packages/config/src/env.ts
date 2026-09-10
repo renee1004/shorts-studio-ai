@@ -36,6 +36,10 @@ const serverEnvSchema = z.object({
 
   GEMINI_API_KEY: z.string().min(1).optional(),
   GEMINI_RESEARCH_MODEL: z.string().min(1).optional(),
+  GEMINI_SEARCH_GROUNDING: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
   GEMINI_TTS_MODEL: z.string().min(1).optional(),
   GEMINI_TTS_VOICE: z.string().min(1).default("Kore"),
   GEMINI_CONTENT_MODEL: z.string().min(1).optional(),

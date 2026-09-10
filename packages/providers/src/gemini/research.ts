@@ -14,6 +14,8 @@ export type LiveResearchOptions = {
   apiKey: string;
   /** 모델명은 설정값이다. 코드에 고정하지 않는다. */
   modelName: string;
+  /** Google Search quota가 없는 개발 환경에서는 false로 두고 미확인 초안만 만든다. */
+  useSearchGrounding?: boolean;
   retry: RetryPolicy;
   fetchImpl?: typeof fetch;
 };
@@ -48,9 +50,10 @@ export class LiveResearchProvider implements ResearchProvider {
     const url = new URL(`${API_BASE}/models/${this.options.modelName}:generateContent`);
     url.searchParams.set("key", this.options.apiKey);
 
+    const useSearchGrounding = this.options.useSearchGrounding ?? true;
     const payload = {
-      contents: [{ role: "user", parts: [{ text: buildPrompt(input) }] }],
-      tools: [{ google_search: {} }],
+      contents: [{ role: "user", parts: [{ text: buildPrompt(input, useSearchGrounding) }] }],
+      ...(useSearchGrounding ? { tools: [{ google_search: {} }] } : {}),
       generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
     };
 
@@ -98,23 +101,42 @@ export class LiveResearchProvider implements ResearchProvider {
     }
 
     const grounded = groundingCitations(candidate);
-    const content = mergeCitations(parseModelJson(text), grounded);
+    const parsed = parseModelJson(text);
+    const content = useSearchGrounding
+      ? mergeCitations(parsed, grounded)
+      : {
+          ...parsed,
+          citations: [],
+          keyFacts: [],
+          unknowns: [
+            ...new Set([
+              ...parsed.unknowns,
+              "Google 검색을 사용하지 않은 무료 초안입니다. 게시 전에 사실과 최신 정보를 직접 확인하세요.",
+            ]),
+          ],
+        };
 
     return {
       // 근거를 붙이지 못한 주장은 저장하지 않는다.
       content: dropUngroundedFacts(content),
       modelName: this.options.modelName,
-      promptVersion: RESEARCH_PROMPT_VERSION,
+      promptVersion: useSearchGrounding
+        ? RESEARCH_PROMPT_VERSION
+        : `${RESEARCH_PROMPT_VERSION}.ungrounded`,
       mode: "live",
     };
   }
 }
 
-export function buildPrompt(input: ResearchTopicInput): string {
+export function buildPrompt(input: ResearchTopicInput, useSearchGrounding = true): string {
   return [
     "You are a research analyst preparing a short-form video brief.",
-    "Use Google Search grounding. Every factual claim must come from a source you actually retrieved.",
-    "If you cannot ground a claim, omit it and list it under unknowns instead.",
+    useSearchGrounding
+      ? "Use Google Search grounding. Every factual claim must come from a source you actually retrieved."
+      : "Do not use web search. Create a clearly unverified planning draft from general knowledge only.",
+    useSearchGrounding
+      ? "If you cannot ground a claim, omit it and list it under unknowns instead."
+      : "Return empty keyFacts and citations arrays. Put every fact that needs verification under unknowns.",
     "Never invent statistics, revenue figures, CPC values, or URLs.",
     "",
     `Topic: ${input.topicTitle}`,

@@ -100,4 +100,21 @@ describe("buildPrompt", () => {
     expect(prompt).toContain("at most 5");
     expect(prompt).toContain("초보자용");
   });
+
+  it("무료 초안에서는 검색과 출처 생성을 요구하지 않는다", () => {
+    const prompt = buildPrompt(
+      {
+        workspaceId: "ws",
+        topicTitle: "업무 자동화",
+        nicheName: "Work",
+        angleHint: null,
+        language: "ko",
+        maxSources: 5,
+      },
+      false,
+    );
+
+    expect(prompt).toContain("Do not use web search");
+    expect(prompt).toContain("empty keyFacts and citations arrays");
+  });
 });

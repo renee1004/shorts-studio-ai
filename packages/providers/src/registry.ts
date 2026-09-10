@@ -37,6 +37,7 @@ export type RegistryOptions = {
   youtubeApiKey?: string | undefined;
   geminiApiKey?: string | undefined;
   geminiResearchModel?: string | undefined;
+  geminiSearchGrounding?: boolean | undefined;
   geminiContentModel?: string | undefined;
   quota: QuotaLedger;
   cache: ResponseCache;
@@ -140,6 +141,7 @@ export class ProviderRegistry {
       return new LiveResearchProvider({
         apiKey: this.options.geminiApiKey,
         modelName: this.options.geminiResearchModel,
+        useSearchGrounding: this.options.geminiSearchGrounding ?? true,
         retry: this.options.retry,
       });
     }
