@@ -27,6 +27,10 @@ export default async function CreatePage({
     <CreationClient
       key={initialProject?.id ?? "new"}
       {...(initialProject ? { initialProject } : {})}
+      narrationEnabled={
+        env().APP_MODE === "live" &&
+        Boolean(env().GEMINI_API_KEY && env().GEMINI_TTS_MODEL)
+      }
       workspaceId={workspace.id}
       canWrite={roleHasPermission(workspace.role, "topic:write")}
       demo={env().APP_MODE === "demo"}

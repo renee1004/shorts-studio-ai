@@ -19,10 +19,12 @@ export function CreationClient({
   canWrite,
   demo,
   initialProject,
+  narrationEnabled,
 }: {
   workspaceId: string;
   canWrite: boolean;
   demo: boolean;
+  narrationEnabled: boolean;
   initialProject?: { id: string; title: string };
 }) {
   const [topic, setTopic] = useState(initialProject?.title ?? "");
@@ -33,6 +35,7 @@ export function CreationClient({
   const [detail, setDetail] = useState<Detail | null>(null);
   const [completed, setCompleted] = useState<string[]>([]);
   const [active, setActive] = useState<string | null>(null);
+  const [voiceId, setVoiceId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const operation = useRef<string | null>(null);
   const running = useRef(false);
@@ -73,6 +76,14 @@ export function CreationClient({
         });
         setDetail(result);
         setCompleted((previous) => [...new Set([...previous, stage.key])]);
+      }
+      if (narrationEnabled) {
+        setActive("narration");
+        const voice = await post<{ assetId: string }>(
+          `projects/${id}/narration`,
+          {},
+        );
+        setVoiceId(voice.assetId);
       }
     } catch (caught) {
       setError(
@@ -121,7 +132,8 @@ export function CreationClient({
             !canWrite ||
             Boolean(active) ||
             topic.trim().length < 2 ||
-            completed.includes("script")
+            (completed.includes("script") &&
+              (!narrationEnabled || Boolean(voiceId)))
           }
           className="w-full"
         >
@@ -156,6 +168,18 @@ export function CreationClient({
                 </span>
               </li>
             ))}
+            {narrationEnabled && (
+              <li className="flex justify-between text-sm">
+                <span>내레이션 생성</span>
+                <span>
+                  {voiceId
+                    ? "완료"
+                    : active === "narration"
+                      ? "진행 중"
+                      : "대기"}
+                </span>
+              </li>
+            )}
           </ol>
           <p className="mt-4 text-sm text-muted-foreground">
             화면을 닫으면 다음 단계는 진행되지 않습니다. 저장된 결과는 내
@@ -165,6 +189,14 @@ export function CreationClient({
       )}
       {completed.includes("script") && detail && (
         <section className="space-y-4 rounded-2xl border bg-card p-6">
+          {voiceId && (
+            <audio
+              aria-label="생성된 내레이션"
+              controls
+              preload="none"
+              src={`/api/v1/workspaces/${workspaceId}/assets/${voiceId}/file`}
+            />
+          )}
           <h2 className="text-xl font-bold">대본과 장면 구성이 준비됐어요</h2>
           <p className="text-sm">
             장면 {detail.shots.length}개 · 구성안 3개 중 첫 번째를 기본
@@ -185,9 +217,9 @@ export function CreationClient({
       <section className="rounded-2xl border border-dashed p-6">
         <h2 className="font-bold">영상 완성까지 남은 연결</h2>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          음성 생성, 스톡 영상 자동 수집, YouTube 자동 게시는 아직 연결되지
-          않았습니다. 현재 영상 합성은 직접 올린 클립 또는 임시 화면을
-          이용합니다.
+          음성 생성은 Gemini 음성 모델 연결 후 사용할 수 있습니다. 스톡 영상
+          자동 수집과 YouTube 자동 게시는 아직 연결되지 않았습니다. 현재 영상
+          합성은 직접 올린 클립 또는 임시 화면을 이용합니다.
         </p>
         <Link href="/factory" className="mt-3 inline-block text-sm underline">
           영상 합성 작업 열기
@@ -206,6 +238,7 @@ export function CreationClient({
             onClick={() => {
               operation.current = null;
               setStarted(false);
+              setVoiceId(null);
               setProjectId(null);
               setDetail(null);
               setCompleted([]);

@@ -1,3 +1,5 @@
+import { generateNarration, findNarration } from "../narration";
+import { pcmToWave } from "@shorts-os/providers";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
 import { readdir, rm } from "node:fs/promises";
@@ -16,7 +18,10 @@ import {
   withUserSession,
   type Database,
 } from "@shorts-os/db";
-import { renderManifestSchema, structuredScriptSchema } from "@shorts-os/contracts";
+import {
+  renderManifestSchema,
+  structuredScriptSchema,
+} from "@shorts-os/contracts";
 import { UnavailableVideoGenerationProvider } from "@shorts-os/providers";
 import {
   approveRenderJob,
@@ -83,7 +88,10 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await service.execute(sql`delete from workspaces where id = ${workspaceId}`);
-  await rm(`${localMediaRoot()}/${workspaceId}`, { recursive: true, force: true });
+  await rm(`${localMediaRoot()}/${workspaceId}`, {
+    recursive: true,
+    force: true,
+  });
   await closePools();
 });
 
@@ -157,11 +165,13 @@ async function addScript(
   return { script, shots };
 }
 
-async function createFixture(options: {
-  approved?: boolean;
-  caption?: string;
-  secondScript?: boolean;
-} = {}) {
+async function createFixture(
+  options: {
+    approved?: boolean;
+    caption?: string;
+    secondScript?: boolean;
+  } = {},
+) {
   const project = await insertContentProject(service, {
     workspaceId,
     topicId,
@@ -197,7 +207,13 @@ async function enqueue(fixture: Fixture, key: string, overrides = {}) {
     workspaceId,
     userId: owner,
     projectId: fixture.project.id,
-    request: { allowPlaceholder: true, width: 360, height: 640, fps: 24, ...overrides },
+    request: {
+      allowPlaceholder: true,
+      width: 360,
+      height: 640,
+      fps: 24,
+      ...overrides,
+    },
     idempotencyKey: `${key}-${suffix}-${fixture.project.id}`,
     video,
   });
@@ -271,7 +287,10 @@ describe("Phase 4.1 Demo render integrity", () => {
     });
     expect(first.commandHash).toMatch(/^[a-f0-9]{64}$/);
     const duplicate = await enqueue(fixture, "bound-duplicate");
-    expect(duplicate).toMatchObject({ reused: true, renderJobId: first.renderJobId });
+    expect(duplicate).toMatchObject({
+      reused: true,
+      renderJobId: first.renderJobId,
+    });
   });
 
   it("ASS 자막 합성 실패 시 Job을 failed로 기록한다", async () => {
@@ -283,9 +302,9 @@ describe("Phase 4.1 Demo render integrity", () => {
     await expect(executeRenderJob(render.renderJobId, service)).rejects.toThrow(
       /3줄 Safe Area/,
     );
-    expect((await getRenderJob(service, workspaceId, render.renderJobId))?.status).toBe(
-      "failed",
-    );
+    expect(
+      (await getRenderJob(service, workspaceId, render.renderJobId))?.status,
+    ).toBe("failed");
   }, 90_000);
 
   it("선택하지 않은 성공 Shot Asset을 재사용한다", async () => {
@@ -299,9 +318,11 @@ describe("Phase 4.1 Demo render integrity", () => {
     const failed = await getRenderJob(service, workspaceId, first.renderJobId);
     expect(failed?.status).toBe("failed");
     const failedManifest = renderManifestSchema.parse(failed!.renderManifest);
-    expect(failedManifest.shots.every((shot) => shot.execution.status === "succeeded")).toBe(
-      true,
-    );
+    expect(
+      failedManifest.shots.every(
+        (shot) => shot.execution.status === "succeeded",
+      ),
+    ).toBe(true);
 
     const selectedId = failedManifest.shots[0]!.shotId;
     const unselected = failedManifest.shots[1]!;
@@ -315,7 +336,11 @@ describe("Phase 4.1 Demo render integrity", () => {
       video,
       idempotencyKey: `retry-selected-${suffix}-${fixture.project.id}`,
     });
-    const retryJob = await getRenderJob(service, workspaceId, retry.renderJobId);
+    const retryJob = await getRenderJob(
+      service,
+      workspaceId,
+      retry.renderJobId,
+    );
     const retryManifest = renderManifestSchema.parse(retryJob!.renderManifest);
     expect(retryManifest.shots[0]!.execution).toMatchObject({
       status: "pending",
@@ -328,8 +353,14 @@ describe("Phase 4.1 Demo render integrity", () => {
     await expect(executeRenderJob(retry.renderJobId, service)).rejects.toThrow(
       /3줄 Safe Area/,
     );
-    const executedRetry = await getRenderJob(service, workspaceId, retry.renderJobId);
-    const executedManifest = renderManifestSchema.parse(executedRetry!.renderManifest);
+    const executedRetry = await getRenderJob(
+      service,
+      workspaceId,
+      retry.renderJobId,
+    );
+    const executedManifest = renderManifestSchema.parse(
+      executedRetry!.renderManifest,
+    );
     expect(executedManifest.shots[0]!.execution.assetId).not.toBe(
       failedManifest.shots[0]!.execution.assetId,
     );
@@ -346,7 +377,9 @@ describe("Phase 4.1 Demo render integrity", () => {
       claimQueuedRenderJob(service, render.renderJobId),
     ]);
     expect(claims.filter(Boolean)).toHaveLength(1);
-    expect((await getRenderJob(service, workspaceId, render.renderJobId))?.status).toBe("running");
+    expect(
+      (await getRenderJob(service, workspaceId, render.renderJobId))?.status,
+    ).toBe("running");
   });
 
   it("정상 Render는 idempotent하고 checksum 승인까지 된다", async () => {
@@ -369,4 +402,46 @@ describe("Phase 4.1 Demo render integrity", () => {
     });
     expect(approval.snapshotHash).toBe(rendered.outputChecksumSha256);
   }, 90_000);
+});
+
+describe("Narration and render integration", () => {
+  it("saves voice once, pins it to matching shots, and renders an audible track", async () => {
+    const fixture = await createFixture();
+    const pcm = Buffer.alloc(24000);
+    for (let i = 0; i < pcm.length / 2; i++)
+      pcm.writeInt16LE(
+        Math.round(6000 * Math.sin((2 * Math.PI * 440 * i) / 24000)),
+        i * 2,
+      );
+    let calls = 0;
+    const options = {
+      db: service,
+      workspaceId,
+      projectId: fixture.project.id,
+      shots: fixture.first.shots,
+      model: "test",
+      voice: "test",
+      provider: {
+        synthesize: async () => {
+          calls++;
+          return pcmToWave(pcm);
+        },
+      },
+    };
+    const voice = await generateNarration(options);
+    expect((await generateNarration(options)).id).toBe(voice.id);
+    expect(calls).toBe(2);
+    const queued = await enqueue(fixture, "with-narration");
+    const rendered = await executeRenderJob(queued.renderJobId, service);
+    expect(rendered.status).toBe("succeeded");
+    expect(rendered.probe).toMatchObject({ hasNarration: true });
+    expect(Number(rendered.loudnessLufs)).toBeGreaterThan(-30);
+    const changed = fixture.first.shots.map((s) => ({
+      ...s,
+      narration: "바뀐 대본",
+    }));
+    expect(
+      await findNarration(service, workspaceId, fixture.project.id, changed),
+    ).toBeNull();
+  });
 });
