@@ -119,11 +119,8 @@ export function loadServerEnv(
     if (!env.SUPABASE_ANON_KEY)
       issues.push("AUTH_PROVIDER=supabase에는 SUPABASE_ANON_KEY가 필요합니다.");
   }
-  if (env.APP_MODE === "live" && !env.YOUTUBE_API_KEY) {
-    issues.push(
-      "APP_MODE=live에는 YOUTUBE_API_KEY가 필요합니다. demo 모드로 두면 키 없이 실행됩니다.",
-    );
-  }
+  // Provider credentials are checked when that provider is requested.
+  // Gemini-only creation must not require a YouTube discovery key.
   if (
     env.NODE_ENV === "production" &&
     (env.AUTH_SESSION_SECRET.length < 32 ||
