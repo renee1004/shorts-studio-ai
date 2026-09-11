@@ -6,3 +6,4 @@ export * from "./render-engine";
 export * from "./seed";
 
 export * from "./narration";
+export * from "./creation";

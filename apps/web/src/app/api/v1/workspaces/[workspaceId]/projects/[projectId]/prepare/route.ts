@@ -77,6 +77,7 @@ export const POST = route<{ workspaceId: string; projectId: string }>(
             ),
           );
       } else if (stage === "angles") {
+        if (detail.latestScript) return;
         if (!detail.project.researchBriefId)
           throw new DomainError(
             "INVALID_STATE_TRANSITION",

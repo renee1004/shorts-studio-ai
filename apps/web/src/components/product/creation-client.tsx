@@ -2,15 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { creationInputSchema } from "@shorts-os/contracts";
 import {
   creationRequest,
   CreationRequestUncertainError,
 } from "@/lib/creation-request";
 import { Button } from "@/components/ui/button";
 
-type Detail = {
+export type CreationDetail = {
   project: { id: string; title: string };
-  latestScript: { body: string } | null;
+  latestScript: { scriptText: string; modelName: string | null } | null;
+  brief?: { modelName: string | null } | null;
   shots: unknown[];
 };
 const stages = [
@@ -23,6 +25,7 @@ export function CreationClient({
   canWrite,
   demo,
   initialProject,
+  initialDetail,
   narrationEnabled,
 }: {
   workspaceId: string;
@@ -30,16 +33,27 @@ export function CreationClient({
   demo: boolean;
   narrationEnabled: boolean;
   initialProject?: { id: string; title: string };
+  initialDetail?: CreationDetail;
 }) {
-  const [mode, setMode] = useState<"topic" | "notes" | "script">("topic");
+  const [mode, setMode] = useState<"topic" | "notes" | "script">(
+    initialDetail?.latestScript?.modelName === "user-import"
+      ? "script"
+      : initialDetail?.brief?.modelName === "user-import"
+        ? "notes"
+        : "topic",
+  );
   const [suppliedText, setSuppliedText] = useState("");
   const [topic, setTopic] = useState(initialProject?.title ?? "");
   const [started, setStarted] = useState(Boolean(initialProject));
   const [projectId, setProjectId] = useState<string | null>(
     initialProject?.id ?? null,
   );
-  const [detail, setDetail] = useState<Detail | null>(null);
-  const [completed, setCompleted] = useState<string[]>([]);
+  const [detail, setDetail] = useState<CreationDetail | null>(
+    initialDetail ?? null,
+  );
+  const [completed, setCompleted] = useState<string[]>(
+    initialDetail?.latestScript ? ["script"] : [],
+  );
   const [active, setActive] = useState<string | null>(null);
   const [voiceId, setVoiceId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -69,20 +83,26 @@ export function CreationClient({
     setError("");
     setElapsed(0);
     setActive("start");
+    let id = projectId;
     try {
       operation.current ??= crypto.randomUUID();
-      setStarted(true);
-      let id = projectId;
       if (!id) {
-        const created = await post<Detail>("creation", {
+        const parsed = creationInputSchema.safeParse({
           mode,
           suppliedText,
           topic: topic.trim(),
           operationId: operation.current,
         });
+        if (!parsed.success) {
+          setError(parsed.error.issues[0]?.message ?? "입력을 확인해 주세요.");
+          return;
+        }
+        setStarted(true);
+        const created = await post<CreationDetail>("creation", parsed.data);
         id = created.project.id;
         setProjectId(id);
         setDetail(created);
+        window.history.replaceState(null, "", `/create?project=${id}`);
       }
       if (mode === "script") {
         setCompleted(["script"]);
@@ -93,23 +113,15 @@ export function CreationClient({
       )) {
         setElapsed(0);
         setActive(stage.key);
-        const result = await post<Detail>(`projects/${id}/prepare`, {
+        const result = await post<CreationDetail>(`projects/${id}/prepare`, {
           stage: stage.key,
         });
         setDetail(result);
         setCompleted((previous) => [...new Set([...previous, stage.key])]);
       }
-      if (narrationEnabled) {
-        setElapsed(0);
-        setActive("narration");
-        const voice = await post<{ assetId: string }>(
-          `projects/${id}/narration`,
-          {},
-        );
-        setVoiceId(voice.assetId);
-      }
     } catch (caught) {
       if (caught instanceof CreationRequestUncertainError) setUncertain(true);
+      else if (!id) setStarted(false);
       setError(
         caught instanceof Error ? caught.message : "제작 중 문제가 생겼습니다.",
       );
@@ -164,7 +176,7 @@ export function CreationClient({
             />
             <span className="text-xs font-normal text-muted-foreground">
               {mode === "notes"
-                ? "최대 4,000자. 새 조사는 생략하며 구성안·대본·음성 생성에는 API 사용량이 발생할 수 있습니다."
+                ? "최대 4,000자. 새 조사는 생략하며 구성안·대본 생성에 API를 사용합니다. 음성은 저장 후 별도로 선택합니다."
                 : "장면별 줄바꿈으로 2~16개 문단, 문단당 800자 이내. 문구를 다시 생성하지 않습니다. 음성은 저장 후 별도로 진행합니다."}
             </span>
           </label>
@@ -192,9 +204,8 @@ export function CreationClient({
             !canWrite ||
             Boolean(active) ||
             topic.trim().length < 2 ||
-            (mode !== "topic" && !suppliedText.trim()) ||
-            (completed.includes("script") &&
-              (mode === "script" || !narrationEnabled || Boolean(voiceId)))
+            (!projectId && mode !== "topic" && !suppliedText.trim()) ||
+            completed.includes("script")
           }
           className="w-full"
         >
@@ -231,13 +242,15 @@ export function CreationClient({
               <li key={stage.key} className="flex justify-between text-sm">
                 <span>{stage.label}</span>
                 <span>
-                  {mode === "notes" && stage.key === "research"
-                    ? "제공 자료 사용"
-                    : completed.includes(stage.key)
-                      ? "완료"
-                      : active === stage.key
-                        ? "진행 중"
-                        : "대기"}
+                  {mode === "script" && stage.key !== "script"
+                    ? "생략 · 완성 대본 사용"
+                    : mode === "notes" && stage.key === "research"
+                      ? "제공 자료 사용"
+                      : completed.includes(stage.key)
+                        ? "완료"
+                        : active === stage.key
+                          ? "진행 중"
+                          : "대기"}
                 </span>
               </li>
             ))}
@@ -249,7 +262,7 @@ export function CreationClient({
                     ? "완료"
                     : active === "narration"
                       ? "진행 중"
-                      : "대기"}
+                      : "선택 사항 · 별도 실행"}
                 </span>
               </li>
             )}
@@ -270,11 +283,12 @@ export function CreationClient({
               src={`/api/v1/workspaces/${workspaceId}/assets/${voiceId}/file`}
             />
           )}
-          {mode === "script" && narrationEnabled && !voiceId && (
+          {narrationEnabled && !voiceId && (
             <Button
-              disabled={Boolean(active) || uncertain}
+              disabled={!canWrite || Boolean(active) || uncertain}
               onClick={async () => {
-                if (!projectId || running.current) return;
+                if (!canWrite || uncertain || !projectId || running.current)
+                  return;
                 running.current = true;
                 setElapsed(0);
                 setActive("narration");
@@ -343,6 +357,7 @@ export function CreationClient({
           <button
             className="underline"
             onClick={() => {
+              window.location.assign("/create");
               operation.current = null;
               setStarted(false);
               setVoiceId(null);

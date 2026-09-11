@@ -6,3 +6,4 @@ export * from "./research";
 export * from "./studio";
 export * from "./factory";
 export * from "./workspace";
+export * from "./creation";
