@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { CreationSteps } from "./creation-steps";
 import type { NotebookDocument } from "@shorts-os/contracts";
 import { Button } from "@/components/ui/button";
 
@@ -102,18 +103,15 @@ export function NotebookImportClient({
     };
   }, [base]);
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-6">
+    <main className="mx-auto max-w-3xl space-y-6 py-6">
       <div>
         <h1 className="text-2xl font-bold">NotebookLM에서 가져오기</h1>
         <p className="mt-2 text-muted-foreground">
-          노트·대본 선택 → 원문 확인 → 원문 그대로 저장
+          가져올 대본 하나를 선택해 주세요.
         </p>
       </div>
+      <CreationSteps />
       <section className="space-y-4 rounded-2xl border p-6">
-        <p className="text-sm">
-          NotebookLM에 저장한 노트와 완성된 보고서를 가져옵니다. 대본은 저장해
-          둔 노트 또는 보고서에서 선택해 주세요.
-        </p>
         <Button
           disabled={busy || !canWrite}
           onClick={() =>
@@ -140,9 +138,16 @@ export function NotebookImportClient({
             })
           }
         >
-          노트북 불러오기
+          {notebooks.length ? "목록 새로고침" : "내 노트북 불러오기"}
         </Button>
         {!canWrite && <p>가져오기 권한이 있는 멤버만 사용할 수 있습니다.</p>}
+        <details className="text-sm text-muted-foreground">
+          <summary className="cursor-pointer">처음 이용하시나요?</summary>
+          <p className="mt-2">
+            노트북을 불러온 뒤 저장해 둔 노트나 완성된 보고서를 선택하세요.
+            대본은 NotebookLM에서 노트로 저장해 두면 됩니다.
+          </p>
+        </details>
         {connection && !connection.configured && (
           <div className="space-y-2 rounded-lg bg-muted p-4 text-sm">
             <p>
@@ -150,10 +155,13 @@ export function NotebookImportClient({
                 ? "개인 NotebookLM 자료를 가져오려면 체험 계정 대신 이메일로 로그인해 주세요."
                 : "최초 한 번 Google 계정 연결이 필요합니다. 서버의 NotebookLM 연결을 설정한 뒤 다시 불러와 주세요."}
             </p>
-            <p>
-              연결할 앱 사용자 ID:{" "}
-              <code className="break-all">{connection.userId}</code>
-            </p>
+            <details>
+              <summary className="cursor-pointer">연결 설정 정보</summary>
+              <p>
+                연결할 앱 사용자 ID:{" "}
+                <code className="break-all">{connection.userId}</code>
+              </p>
+            </details>
           </div>
         )}
         {notebooks.length > 0 && (
@@ -327,14 +335,16 @@ export function NotebookImportClient({
                 className="inline-block underline"
                 href={`/create?import=${savedId}`}
               >
-                이 원문으로 제작용 대본 준비
+                다음: 이 대본으로 영상 준비 →
               </Link>
             </div>
           )}
         </section>
       )}
-      <section className="space-y-3 rounded-2xl border p-6">
-        <h2 className="font-semibold">저장한 원문</h2>
+      <details className="space-y-3 rounded-2xl border p-5">
+        <summary className="cursor-pointer font-semibold">
+          저장한 원문 ({saved.length})
+        </summary>
         {saved.length === 0 && (
           <p className="text-sm text-muted-foreground">
             아직 저장한 원문이 없습니다.
@@ -369,7 +379,7 @@ export function NotebookImportClient({
             {new Date(item.importedAt).toLocaleString("ko-KR")}
           </button>
         ))}
-      </section>
+      </details>
       <Link href="/create" className="inline-block underline">
         제작 화면으로
       </Link>

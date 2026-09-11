@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { CreationSteps } from "./creation-steps";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -38,7 +39,11 @@ type Detail = {
       };
     }[];
   };
-  approval: { decision: string; snapshotHash: string; decidedAt: string } | null;
+  approval: {
+    decision: string;
+    snapshotHash: string;
+    decidedAt: string;
+  } | null;
 };
 
 export function FactoryDetailClient({
@@ -56,18 +61,27 @@ export function FactoryDetailClient({
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
-  const generating = detail.job.status === "queued" || detail.job.status === "running";
+  const generating =
+    detail.job.status === "queued" || detail.job.status === "running";
 
   useEffect(() => {
     if (!generating) return;
-    const timer = window.setInterval(() => startTransition(() => router.refresh()), 2500);
+    const timer = window.setInterval(
+      () => startTransition(() => router.refresh()),
+      2500,
+    );
     return () => window.clearInterval(timer);
   }, [generating, router, startTransition]);
 
   const [busy, setBusy] = useState<string | null>(null);
   const [retryShots, setRetryShots] = useState<string[]>([]);
 
-  async function post(path: string, body: unknown, success: string, extra?: HeadersInit) {
+  async function post(
+    path: string,
+    body: unknown,
+    success: string,
+    extra?: HeadersInit,
+  ) {
     setBusy(path);
     try {
       const response = await fetch(path, {
@@ -75,12 +89,16 @@ export function FactoryDetailClient({
         headers: { "content-type": "application/json", ...extra },
         body: JSON.stringify(body),
       });
-      const payload = (await response.json()) as { error?: { message: string } };
+      const payload = (await response.json()) as {
+        error?: { message: string };
+      };
       if (!response.ok) throw new Error(payload.error?.message ?? success);
       toast.success(success);
       startTransition(() => router.refresh());
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "요청이 실패했습니다.");
+      toast.error(
+        error instanceof Error ? error.message : "요청이 실패했습니다.",
+      );
     } finally {
       setBusy(null);
     }
@@ -93,12 +111,17 @@ export function FactoryDetailClient({
       const form = new FormData();
       form.set("file", file);
       const response = await fetch(path, { method: "POST", body: form });
-      const payload = (await response.json()) as { error?: { message: string } };
-      if (!response.ok) throw new Error(payload.error?.message ?? "업로드에 실패했습니다.");
+      const payload = (await response.json()) as {
+        error?: { message: string };
+      };
+      if (!response.ok)
+        throw new Error(payload.error?.message ?? "업로드에 실패했습니다.");
       toast.success("Shot 영상을 업로드했습니다. 새 Render에서 사용됩니다.");
       startTransition(() => router.refresh());
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "업로드가 실패했습니다.");
+      toast.error(
+        error instanceof Error ? error.message : "업로드가 실패했습니다.",
+      );
     } finally {
       setBusy(null);
     }
@@ -110,6 +133,7 @@ export function FactoryDetailClient({
 
   return (
     <div className="space-y-6">
+      <CreationSteps current={3} />
       <p className="text-sm text-muted-foreground">
         <Link href="/factory" className="underline underline-offset-4">
           Video Factory
@@ -131,7 +155,7 @@ export function FactoryDetailClient({
             <div className="flex aspect-[9/16] max-h-[70vh] items-center justify-center px-6 text-center text-sm text-zinc-400">
               {generating
                 ? "합성 중입니다. 이 화면은 자동으로 새로고침됩니다."
-                : detail.job.errorMessage ?? "아직 미리보기가 없습니다."}
+                : (detail.job.errorMessage ?? "아직 미리보기가 없습니다.")}
             </div>
           )}
         </div>
@@ -142,18 +166,23 @@ export function FactoryDetailClient({
           <dl className="space-y-2 text-sm">
             <div>
               <dt className="text-muted-foreground">Checksum</dt>
-              <dd className="break-all font-mono text-[11px]">{detail.job.checksum ?? "—"}</dd>
+              <dd className="break-all font-mono text-[11px]">
+                {detail.job.checksum ?? "—"}
+              </dd>
             </div>
             <div>
               <dt className="text-muted-foreground">길이 / 해상도</dt>
               <dd className="font-mono text-[12px]">
-                {detail.job.durationSeconds ?? "—"}s · {detail.job.width}×{detail.job.height}
+                {detail.job.durationSeconds ?? "—"}s · {detail.job.width}×
+                {detail.job.height}
               </dd>
             </div>
             <div>
               <dt className="text-muted-foreground">Loudness</dt>
               <dd className="font-mono text-[12px]">
-                {detail.job.loudnessLufs === null ? "측정 불가" : `${detail.job.loudnessLufs} LUFS`}
+                {detail.job.loudnessLufs === null
+                  ? "측정 불가"
+                  : `${detail.job.loudnessLufs} LUFS`}
               </dd>
             </div>
             <div>
@@ -204,16 +233,21 @@ export function FactoryDetailClient({
             </Button>
           </div>
           {detail.job.errorMessage ? (
-            <p className="text-sm text-destructive">{detail.job.errorMessage}</p>
+            <p className="text-sm text-destructive">
+              {detail.job.errorMessage}
+            </p>
           ) : null}
         </div>
       </section>
 
       <section>
-        <h2 className="text-lg font-bold">Shot 매니페스트</h2>
+        <h2 className="text-lg font-bold">사용할 장면</h2>
         <ul className="mt-3 space-y-2">
           {detail.manifest.shots.map((shot) => (
-            <li key={shot.shotId} className="rounded-2xl border border-border/70 bg-card p-4">
+            <li
+              key={shot.shotId}
+              className="rounded-2xl border border-border/70 bg-card p-4"
+            >
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <label className="flex items-center gap-2 text-sm font-bold">
                   <input
@@ -246,11 +280,16 @@ export function FactoryDetailClient({
                 </label>
               </div>
               <p className="mt-1 font-mono text-[11px] text-muted-foreground">
-                {shot.durationSeconds}s · {shot.strategy} · {shot.execution.status}
-                {shot.clipChecksum ? ` · ${shot.clipChecksum.slice(0, 12)}…` : ""}
+                {shot.durationSeconds}s · {shot.strategy} ·{" "}
+                {shot.execution.status}
+                {shot.clipChecksum
+                  ? ` · ${shot.clipChecksum.slice(0, 12)}…`
+                  : ""}
               </p>
               {shot.execution.error ? (
-                <p className="mt-1 text-xs text-destructive">{shot.execution.error}</p>
+                <p className="mt-1 text-xs text-destructive">
+                  {shot.execution.error}
+                </p>
               ) : null}
             </li>
           ))}

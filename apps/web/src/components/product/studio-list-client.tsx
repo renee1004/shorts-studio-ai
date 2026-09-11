@@ -76,8 +76,16 @@ export function StudioListClient({
 
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl border border-border/70 bg-card p-5">
-        <h2 className="text-sm font-bold">승인된 주제로 시작</h2>
+      <Link
+        href="/create"
+        className="inline-block rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground"
+      >
+        + 새 영상 만들기
+      </Link>
+      <details className="rounded-2xl border border-border/70 bg-card p-5">
+        <summary className="cursor-pointer text-sm font-semibold">
+          고급: 조사한 주제로 시작
+        </summary>
         <p className="mt-1 text-[12px] text-muted-foreground">
           Topic Radar에서 주제를 승인한 뒤 Research Brief를 만들면 여기 목록에
           나타납니다.
@@ -115,13 +123,13 @@ export function StudioListClient({
             </Button>
           </div>
         )}
-      </section>
+      </details>
 
       <section>
-        <h2 className="text-lg font-bold">프로젝트</h2>
+        <h2 className="text-lg font-bold">저장한 작업</h2>
         {projects.length === 0 ? (
           <p className="mt-3 rounded-2xl border border-dashed border-border p-6 text-sm text-muted-foreground">
-            프로젝트가 없습니다. 승인된 주제로 첫 프로젝트를 만드세요.
+            아직 저장한 작업이 없어요. 위의 ‘새 영상 만들기’로 시작해 보세요.
           </p>
         ) : (
           <ul className="mt-3 space-y-2">
@@ -134,7 +142,16 @@ export function StudioListClient({
                   <div>
                     <p className="text-sm font-semibold">{project.title}</p>
                     <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
-                      {project.status} · {project.targetDurationSeconds}s
+                      {(
+                        {
+                          draft: "대본 준비 중",
+                          research_ready: "자료 준비됨",
+                          script_ready: "대본 준비됨",
+                          approved: "승인 완료",
+                          rendered: "영상 완성",
+                        } as Record<string, string>
+                      )[project.status] ?? "작업 중"}{" "}
+                      · {project.targetDurationSeconds}초
                     </p>
                   </div>
                   <span className="text-[12px] text-muted-foreground">
@@ -146,7 +163,7 @@ export function StudioListClient({
                     href={`/create?project=${project.id}`}
                     className="mt-1 inline-block px-4 py-2 text-sm underline"
                   >
-                    자동 제작 이어서 진행
+                    대본 준비 이어하기
                   </Link>
                 )}
               </li>
