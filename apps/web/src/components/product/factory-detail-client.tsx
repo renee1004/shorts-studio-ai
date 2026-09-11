@@ -8,6 +8,13 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
 type Detail = {
+  assets?: {
+    id: string;
+    shotId: string | null;
+    assetType: string;
+    provider: string;
+    status: string;
+  }[];
   job: {
     id: string;
     version: number;
@@ -53,12 +60,14 @@ export function FactoryDetailClient({
   canWrite,
   canApprove,
   detail,
+  imageModel = "gemini-3.1-flash-lite-image",
 }: {
   workspaceId: string;
   renderId: string;
   canWrite: boolean;
   canApprove: boolean;
   detail: Detail;
+  imageModel?: string;
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -77,6 +86,75 @@ export function FactoryDetailClient({
   const [busy, setBusy] = useState<string | null>(null);
   const [retryShots, setRetryShots] = useState<string[]>([]);
   const [uploadedShots, setUploadedShots] = useState<string[]>([]);
+  const [imageMessage, setImageMessage] = useState("");
+  const [imageError, setImageError] = useState("");
+  const [newImages, setNewImages] = useState<Record<string, string>>({});
+  const savedImages: Record<string, string> = {};
+  for (const asset of detail.assets ?? []) {
+    if (
+      asset.shotId &&
+      asset.assetType === "video_clip" &&
+      asset.status === "succeeded" &&
+      ["gemini_image", "user_upload"].includes(asset.provider) &&
+      !savedImages[asset.shotId]
+    )
+      savedImages[asset.shotId] = asset.id;
+  }
+  Object.assign(savedImages, newImages);
+  const missingImages = detail.manifest.shots.filter(
+    (shot) => !savedImages[shot.shotId] && !uploadedShots.includes(shot.shotId),
+  );
+  const imagePrice =
+    imageModel === "gemini-3.1-flash-lite-image"
+      ? 0.0336
+      : imageModel === "gemini-3.1-flash-image"
+        ? 0.067
+        : 0.039;
+  async function createImages(shotIds: string[]) {
+    setBusy("images");
+    setImageError("");
+    try {
+      for (const [index, shotId] of shotIds.entries()) {
+        setImageMessage(
+          `${index + 1}/${shotIds.length}장 만드는 중… 화면을 열어 두세요.`,
+        );
+        const response = await fetch(
+          `/api/v1/workspaces/${workspaceId}/gemini-image`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              projectId: detail.project.id,
+              shotId,
+              confirmPaid: true,
+            }),
+          },
+        );
+        const payload = await response.json();
+        if (!response.ok)
+          throw new Error(
+            payload.error?.message ?? "이미지를 만들지 못했습니다.",
+          );
+        setNewImages((current) => ({
+          ...current,
+          [shotId]: payload.data.assetId,
+        }));
+      }
+      setImageMessage(
+        "이미지를 저장했습니다. 아래 미리보기를 확인한 뒤 영상 다시 만들기를 눌러 주세요.",
+      );
+      startTransition(() => router.refresh());
+    } catch (error) {
+      setImageMessage("");
+      setImageError(
+        error instanceof Error
+          ? error.message
+          : "이미지 생성에 실패했습니다. 이미 저장한 장면은 유지됩니다.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function post(
     path: string,
@@ -248,23 +326,104 @@ export function FactoryDetailClient({
       <section>
         <h2 className="text-lg font-bold">사용할 장면</h2>
         <div className="mt-3 space-y-3 rounded-2xl border border-border bg-card p-4">
-          <h3 className="font-bold">Meta AI 이미지로 채우기</h3>
+          <h3 className="font-bold">Gemini로 장면 이미지 만들기</h3>
           <p className="text-sm text-muted-foreground">
-            ① 장면 설명 복사 → ② Meta AI에 붙여넣고 이미지 저장 → ③ 해당 장면에
-            이미지 올리기
+            먼저 한 장을 확인한 뒤 나머지를 만들 수 있어요. 저장한 장면은 다시
+            생성하지 않습니다.
           </p>
-          <a
-            href="https://www.meta.ai/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-block text-sm underline"
-          >
-            Meta AI 열기 ↗
-          </a>
           <p className="text-xs text-muted-foreground">
-            Meta AI에서 직접 생성하는 방식입니다. 올린 이미지는 장면 길이에 맞춰
-            기존 자막과 합성됩니다.
+            {imageModel} · 이미지 출력 기준 한 장 약 ${imagePrice.toFixed(4)} +
+            입력 비용. 생성 버튼을 누르면 API 사용료가 발생합니다.
           </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              disabled={!canWrite || busy !== null}
+              onClick={async () => {
+                setBusy("check-image");
+                setImageError("");
+                setImageMessage("");
+                try {
+                  const response = await fetch(
+                    `/api/v1/workspaces/${workspaceId}/gemini-image`,
+                    { cache: "no-store" },
+                  );
+                  const payload = await response.json();
+                  if (!response.ok)
+                    throw new Error(payload.error?.message ?? "연결 확인 실패");
+                  setImageMessage(payload.data.message);
+                } catch (error) {
+                  setImageError(
+                    error instanceof Error ? error.message : "연결 확인 실패",
+                  );
+                } finally {
+                  setBusy(null);
+                }
+              }}
+            >
+              연결 확인 · 생성 비용 없음
+            </Button>
+            <Button
+              disabled={
+                !canWrite ||
+                generating ||
+                busy !== null ||
+                !missingImages.length
+              }
+              onClick={() => createImages([missingImages[0]!.shotId])}
+            >
+              한 장 먼저 만들기 · 유료
+            </Button>
+            <Button
+              variant="outline"
+              disabled={
+                !canWrite ||
+                generating ||
+                busy !== null ||
+                !missingImages.length
+              }
+              onClick={() =>
+                createImages(missingImages.map((shot) => shot.shotId))
+              }
+            >
+              빈 장면 {missingImages.length}장 만들기 · 약 $
+              {(missingImages.length * imagePrice).toFixed(2)} + 입력 비용
+            </Button>
+          </div>
+          {imageMessage ? (
+            <p role="status" className="text-sm">
+              {imageMessage}
+            </p>
+          ) : null}
+          {imageError ? (
+            <p
+              role="alert"
+              className="rounded-lg border border-destructive p-3 text-sm text-destructive"
+            >
+              {imageError}
+            </p>
+          ) : null}
+          <details className="text-sm">
+            <summary className="cursor-pointer">
+              직접 만든 이미지 가져오기 · Meta AI 등
+            </summary>
+            <p className="text-sm text-muted-foreground">
+              ① 장면 설명 복사 → ② Meta AI에 붙여넣고 이미지 저장 → ③ 해당
+              장면에 이미지 올리기
+            </p>
+            <a
+              href="https://www.meta.ai/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block text-sm underline"
+            >
+              Meta AI 열기 ↗
+            </a>
+            <p className="text-xs text-muted-foreground">
+              Meta AI에서 직접 생성하는 방식입니다. 올린 이미지는 장면 길이에
+              맞춰 기존 자막과 합성됩니다.
+            </p>
+          </details>
           <Button
             disabled={!canWrite || generating || busy !== null}
             onClick={async () => {
@@ -351,6 +510,16 @@ export function FactoryDetailClient({
               <p className="mt-3 text-sm text-muted-foreground">
                 {shot.visualDescription}
               </p>
+              {savedImages[shot.shotId] ? (
+                <video
+                  className="mt-3 max-h-56 rounded-lg"
+                  src={`/api/v1/workspaces/${workspaceId}/assets/${savedImages[shot.shotId]}/file`}
+                  controls
+                  muted
+                  playsInline
+                  preload="metadata"
+                />
+              ) : null}
               <button
                 type="button"
                 className="mt-2 rounded-lg border border-border px-3 py-2 text-xs"

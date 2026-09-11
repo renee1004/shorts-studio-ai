@@ -9,3 +9,4 @@ export * from "./gemini/research";
 export * from "./registry";
 
 export * from "./gemini/speech";
+export * from "./gemini/image";

@@ -1,6 +1,7 @@
 import { findNarration, narrationFingerprint } from "./narration";
 import { createHash } from "node:crypto";
-import { mkdir, writeFile, readFile, rm } from "node:fs/promises";
+import { mkdir, writeFile, readFile, rm, rename } from "node:fs/promises";
+import { sql } from "drizzle-orm";
 import path from "node:path";
 import {
   RENDER_ENGINE_VERSION,
@@ -956,6 +957,7 @@ export async function saveUploadedClip(options: {
   bytes: Buffer;
   mimeType: string;
   fileName: string;
+  generatedSource?: { provider: string; model: string; fingerprint: string };
 }): Promise<MediaAssetRow> {
   const project = await requireProject(
     options.db,
@@ -1008,7 +1010,8 @@ export async function saveUploadedClip(options: {
     contentProjectId: options.projectId,
     shotId: options.shotId,
     assetType: "video_clip",
-    provider: "user_upload",
+    provider: options.generatedSource?.provider ?? "user_upload",
+    generationParameters: options.generatedSource ?? {},
     mimeType: imageExtension ? "video/mp4" : options.mimeType,
     byteSize: options.bytes.byteLength,
     rightsMetadata: {
@@ -1063,6 +1066,120 @@ export async function saveUploadedClip(options: {
     checksumSha256: checksum,
     status: "succeeded",
   };
+}
+
+/** Paid generation runs only on an explicit request, once per scene; completed images survive conversion/DB failures. */
+export async function generateShotImage(options: {
+  db: Database;
+  workspaceId: string;
+  userId: string;
+  projectId: string;
+  shotId: string;
+  model: string;
+  provider: {
+    generate(prompt: string): Promise<{ bytes: Buffer; mimeType: string }>;
+  };
+}) {
+  const lock = await options.db.execute<{ locked: boolean }>(
+    sql`select pg_try_advisory_xact_lock(hashtextextended(${`image:${options.workspaceId}:${options.shotId}`}, 0)) as locked`,
+  );
+  if (!lock[0]?.locked)
+    throw new DomainError(
+      "CONFLICT",
+      "이 장면 이미지를 만들고 있습니다. 잠시 후 확인해 주세요.",
+    );
+  const project = await requireProject(
+    options.db,
+    options.workspaceId,
+    options.projectId,
+  );
+  if (!["approved_to_render", "rendered"].includes(project.status))
+    throw new DomainError(
+      "INVALID_STATE_TRANSITION",
+      "대본 승인과 진행 중인 영상 합성이 끝난 뒤 이미지를 만들어 주세요.",
+    );
+  const { script } = await requireApprovedScript(
+    options.db,
+    options.workspaceId,
+    project,
+  );
+  const shot = (
+    await listShots(options.db, options.workspaceId, script.id)
+  ).find((item) => item.id === options.shotId);
+  if (!shot)
+    throw new DomainError("NOT_FOUND", "승인된 대본의 장면이 아닙니다.");
+  const existing = await latestShotClip(
+    options.db,
+    options.workspaceId,
+    shot.id,
+  );
+  if (
+    existing?.checksumSha256 &&
+    ["user_upload", "gemini_image"].includes(existing.provider)
+  ) {
+    try {
+      if (
+        existing.storageUri &&
+        (await sha256File(existing.storageUri)) === existing.checksumSha256
+      )
+        return { assetId: existing.id, reused: true };
+    } catch {
+      /* Recover generated clips from the cached original below. */
+    }
+    if (existing.provider === "user_upload")
+      throw new DomainError(
+        "VALIDATION_FAILED",
+        "업로드한 장면 파일을 읽지 못했습니다. 이미지를 다시 올려 주세요.",
+      );
+  }
+  const prompt = `Create one vertical 9:16 illustration for a Korean informational short. Consistent clean editorial photography style, dark navy and warm orange accents, centered subject, space for captions. No written text, numbers, logos or watermarks. Represent apps and documents conceptually; do not invent an authentic government interface.\nScene description: ${shot.visualDescription}`;
+  const fingerprint = createHash("sha256")
+    .update(JSON.stringify({ prompt, model: options.model, version: 1 }))
+    .digest("hex");
+  const cacheDir = path.join(
+    mediaRoot(),
+    options.workspaceId,
+    "generated-images",
+    options.projectId,
+    shot.id,
+  );
+  const cachePath = path.join(cacheDir, `${fingerprint}.json`);
+  await mkdir(cacheDir, { recursive: true });
+  let image: { bytes: Buffer; mimeType: string };
+  try {
+    const cached = JSON.parse(await readFile(cachePath, "utf8"));
+    image = {
+      bytes: Buffer.from(cached.data, "base64"),
+      mimeType: cached.mimeType,
+    };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+      throw new DomainError(
+        "PROVIDER_UNAVAILABLE",
+        "저장된 이미지 파일을 읽지 못했습니다. 중복 과금을 막기 위해 다시 생성하지 않았습니다.",
+      );
+    image = await options.provider.generate(prompt);
+    const temp = `${cachePath}.tmp`;
+    await writeFile(
+      temp,
+      JSON.stringify({
+        data: image.bytes.toString("base64"),
+        mimeType: image.mimeType,
+      }),
+    );
+    await rename(temp, cachePath);
+  }
+  const asset = await saveUploadedClip({
+    ...options,
+    ...image,
+    fileName: "gemini-scene",
+    generatedSource: {
+      provider: "gemini_image",
+      model: options.model,
+      fingerprint,
+    },
+  });
+  return { assetId: asset.id, reused: false };
 }
 
 export async function loadFactoryBoard(
