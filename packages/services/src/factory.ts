@@ -1,6 +1,6 @@
 import { findNarration, narrationFingerprint } from "./narration";
 import { createHash } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import {
   RENDER_ENGINE_VERSION,
@@ -57,6 +57,7 @@ import {
   mediaRoot,
   sha256File,
   writePlaceholderClip,
+  writeImageClip,
 } from "./render-engine";
 
 function commandHash(manifest: RenderManifest): string {
@@ -977,17 +978,29 @@ export async function saveUploadedClip(options: {
     project,
   );
   const shotRows = await listShots(options.db, options.workspaceId, script.id);
-  if (!shotRows.some((shot) => shot.id === options.shotId)) {
+  const selectedShot = shotRows.find((shot) => shot.id === options.shotId);
+  if (!selectedShot) {
     throw new DomainError("NOT_FOUND", "승인된 Script의 Shot이 아닙니다.");
   }
   if (options.bytes.byteLength > 25 * 1024 * 1024) {
     throw new DomainError("VALIDATION_FAILED", "클립은 25MB 이하여야 합니다.");
   }
-  const allowed = new Set(["video/mp4", "video/webm", "video/quicktime"]);
+  const imageExtensions: Record<string, string> = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/webp": "webp",
+  };
+  const imageExtension = imageExtensions[options.mimeType];
+  const allowed = new Set([
+    "video/mp4",
+    "video/webm",
+    "video/quicktime",
+    ...Object.keys(imageExtensions),
+  ]);
   if (!allowed.has(options.mimeType)) {
     throw new DomainError(
       "VALIDATION_FAILED",
-      "mp4, webm, mov만 올릴 수 있습니다.",
+      "이미지는 PNG·JPG·WebP, 영상은 MP4·WebM·MOV로 올려 주세요.",
     );
   }
   const asset = await insertMediaAsset(options.db, {
@@ -996,23 +1009,56 @@ export async function saveUploadedClip(options: {
     shotId: options.shotId,
     assetType: "video_clip",
     provider: "user_upload",
-    mimeType: options.mimeType,
+    mimeType: imageExtension ? "video/mp4" : options.mimeType,
     byteSize: options.bytes.byteLength,
-    rightsMetadata: { uploadedBy: options.userId, fileName: options.fileName },
+    rightsMetadata: {
+      uploadedBy: options.userId,
+      fileName: options.fileName,
+      originalMimeType: options.mimeType,
+    },
     status: "running",
   });
   const ext = options.mimeType === "video/webm" ? "webm" : "mp4";
   const filePath = assetFilePath(options.workspaceId, asset.id, ext);
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, options.bytes);
-  const checksum = createHash("sha256").update(options.bytes).digest("hex");
+  let storedBytes = options.bytes;
+  if (imageExtension) {
+    const sourcePath = assetFilePath(
+      options.workspaceId,
+      asset.id,
+      imageExtension,
+    );
+    try {
+      await writeFile(sourcePath, options.bytes);
+      await writeImageClip(
+        sourcePath,
+        filePath,
+        Number(selectedShot.endSeconds) - Number(selectedShot.startSeconds),
+      );
+      storedBytes = await readFile(filePath);
+    } catch {
+      await rm(filePath, { force: true });
+      await updateMediaAsset(options.db, asset.id, { status: "failed" });
+      throw new DomainError(
+        "VALIDATION_FAILED",
+        "이미지를 읽지 못했습니다. 정상적인 PNG·JPG·WebP 파일인지 확인해 주세요.",
+      );
+    } finally {
+      await rm(sourcePath, { force: true });
+    }
+  } else {
+    await writeFile(filePath, storedBytes);
+  }
+  const checksum = createHash("sha256").update(storedBytes).digest("hex");
   await updateMediaAsset(options.db, asset.id, {
     storageUri: filePath,
     checksumSha256: checksum,
+    byteSize: storedBytes.byteLength,
     status: "succeeded",
   });
   return {
     ...asset,
+    byteSize: storedBytes.byteLength,
     storageUri: filePath,
     checksumSha256: checksum,
     status: "succeeded",

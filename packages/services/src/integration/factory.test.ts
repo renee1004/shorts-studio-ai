@@ -2,7 +2,10 @@ import { generateNarration, findNarration } from "../narration";
 import { pcmToWave } from "@shorts-os/providers";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
-import { readdir, rm } from "node:fs/promises";
+import { readdir, rm, mkdtemp, readFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { runCommand, probeMedia } from "../render-engine";
 import {
   closePools,
   claimQueuedRenderJob,
@@ -232,6 +235,55 @@ async function mediaFileCount(): Promise<number> {
 }
 
 describe("Phase 4.1 Demo render integrity", () => {
+  it("업로드한 이미지를 장면 길이의 영상으로 변환하고 새 합성에서 재사용한다", async () => {
+    const fixture = await createFixture();
+    const before = await enqueue(fixture, "before-image");
+    await executeRenderJob(before.renderJobId, service);
+    const temp = await mkdtemp(path.join(os.tmpdir(), "shorts-image-"));
+    try {
+      const imagePath = path.join(temp, "scene.png");
+      await runCommand("ffmpeg", [
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=red:s=64x96",
+        "-frames:v",
+        "1",
+        "-threads",
+        "1",
+        imagePath,
+      ]);
+      const shot = fixture.first.shots[0]!;
+      const asset = await saveUploadedClip({
+        db: service,
+        workspaceId,
+        userId: owner,
+        projectId: fixture.project.id,
+        shotId: shot.id,
+        bytes: await readFile(imagePath),
+        mimeType: "image/png",
+        fileName: "scene.png",
+      });
+      expect(asset.mimeType).toBe("video/mp4");
+      const probe = await probeMedia(asset.storageUri!);
+      expect(probe.width).toBe(1080);
+      expect(probe.height).toBe(1920);
+      expect(probe.durationSeconds).toBeCloseTo(
+        Number(shot.endSeconds) - Number(shot.startSeconds),
+        1,
+      );
+      const after = await enqueue(fixture, "after-image");
+      expect(after.commandHash).not.toBe(before.commandHash);
+      const job = await getRenderJob(service, workspaceId, after.renderJobId);
+      expect(
+        renderManifestSchema.parse(job!.renderManifest).shots[0],
+      ).toMatchObject({ clipAssetId: asset.id, strategy: "user_upload" });
+    } finally {
+      await rm(temp, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it("승인 레코드 없는 프로젝트 렌더를 거부한다", async () => {
     const fixture = await createFixture({ approved: false });
     await expect(enqueue(fixture, "no-approval")).rejects.toMatchObject({

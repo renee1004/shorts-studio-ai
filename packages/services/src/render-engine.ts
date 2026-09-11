@@ -83,6 +83,43 @@ export async function ffmpegAvailable(): Promise<boolean> {
   }
 }
 
+/** Decode one still image and make a silent clip matching its approved scene. */
+export async function writeImageClip(
+  inputPath: string,
+  outputPath: string,
+  durationSeconds: number,
+) {
+  if (
+    !Number.isFinite(durationSeconds) ||
+    durationSeconds <= 0 ||
+    durationSeconds > 180
+  )
+    throw new Error("이미지 장면 길이가 올바르지 않습니다.");
+  await runCommand("ffmpeg", [
+    "-y",
+    "-protocol_whitelist",
+    "file,pipe",
+    "-loop",
+    "1",
+    "-i",
+    inputPath,
+    "-t",
+    String(durationSeconds),
+    "-vf",
+    "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+    "-an",
+    "-c:v",
+    "libx264",
+    "-pix_fmt",
+    "yuv420p",
+    "-preset",
+    "veryfast",
+    "-r",
+    "30",
+    outputPath,
+  ]);
+}
+
 export async function probeMedia(filePath: string): Promise<{
   durationSeconds: number;
   width: number;

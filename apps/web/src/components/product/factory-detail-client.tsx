@@ -30,6 +30,7 @@ type Detail = {
       sequenceNo: number;
       durationSeconds: number;
       onScreenText: string;
+      visualDescription: string;
       strategy: string;
       clipChecksum: string | null;
       execution: {
@@ -75,6 +76,7 @@ export function FactoryDetailClient({
 
   const [busy, setBusy] = useState<string | null>(null);
   const [retryShots, setRetryShots] = useState<string[]>([]);
+  const [uploadedShots, setUploadedShots] = useState<string[]>([]);
 
   async function post(
     path: string,
@@ -116,7 +118,10 @@ export function FactoryDetailClient({
       };
       if (!response.ok)
         throw new Error(payload.error?.message ?? "업로드에 실패했습니다.");
-      toast.success("Shot 영상을 업로드했습니다. 새 Render에서 사용됩니다.");
+      setUploadedShots((current) => [...new Set([...current, shotId])]);
+      toast.success(
+        "장면을 저장했습니다. ‘이미지 넣어 영상 다시 만들기’를 눌러 주세요.",
+      );
       startTransition(() => router.refresh());
     } catch (error) {
       toast.error(
@@ -242,6 +247,68 @@ export function FactoryDetailClient({
 
       <section>
         <h2 className="text-lg font-bold">사용할 장면</h2>
+        <div className="mt-3 space-y-3 rounded-2xl border border-border bg-card p-4">
+          <h3 className="font-bold">Meta AI 이미지로 채우기</h3>
+          <p className="text-sm text-muted-foreground">
+            ① 장면 설명 복사 → ② Meta AI에 붙여넣고 이미지 저장 → ③ 해당 장면에
+            이미지 올리기
+          </p>
+          <a
+            href="https://www.meta.ai/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block text-sm underline"
+          >
+            Meta AI 열기 ↗
+          </a>
+          <p className="text-xs text-muted-foreground">
+            Meta AI에서 직접 생성하는 방식입니다. 올린 이미지는 장면 길이에 맞춰
+            기존 자막과 합성됩니다.
+          </p>
+          <Button
+            disabled={!canWrite || generating || busy !== null}
+            onClick={async () => {
+              setBusy("recompose");
+              try {
+                const response = await fetch(
+                  `/api/v1/workspaces/${workspaceId}/projects/${detail.project.id}/render`,
+                  {
+                    method: "POST",
+                    headers: {
+                      "content-type": "application/json",
+                      "idempotency-key": `render-${crypto.randomUUID()}`,
+                    },
+                    body: JSON.stringify({
+                      allowPlaceholder: true,
+                      width: 1080,
+                      height: 1920,
+                      fps: 30,
+                    }),
+                  },
+                );
+                const payload = await response.json();
+                if (!response.ok)
+                  throw new Error(
+                    payload.error?.message ?? "영상 합성 요청에 실패했습니다.",
+                  );
+                toast.success(
+                  "올린 이미지로 영상을 합성합니다. 이미지가 없는 장면은 기존 방식으로 표시됩니다.",
+                );
+                router.push(`/factory/${payload.data.renderJobId}`);
+              } catch (error) {
+                toast.error(
+                  error instanceof Error
+                    ? error.message
+                    : "합성 요청에 실패했습니다.",
+                );
+              } finally {
+                setBusy(null);
+              }
+            }}
+          >
+            이미지 넣어 영상 다시 만들기
+          </Button>
+        </div>
         <ul className="mt-3 space-y-2">
           {detail.manifest.shots.map((shot) => (
             <li
@@ -265,10 +332,12 @@ export function FactoryDetailClient({
                   {shot.sequenceNo}. {shot.onScreenText}
                 </label>
                 <label className="cursor-pointer rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted">
-                  Shot 영상 업로드
+                  {uploadedShots.includes(shot.shotId)
+                    ? "✓ 저장됨 · 이미지 바꾸기"
+                    : "이미지·영상 올리기"}
                   <input
                     type="file"
-                    accept="video/mp4,video/webm,video/quicktime"
+                    accept="image/png,image/jpeg,image/webp,video/mp4,video/webm,video/quicktime"
                     className="sr-only"
                     disabled={!canWrite || busy !== null}
                     onChange={(event) => {
@@ -279,6 +348,29 @@ export function FactoryDetailClient({
                   />
                 </label>
               </div>
+              <p className="mt-3 text-sm text-muted-foreground">
+                {shot.visualDescription}
+              </p>
+              <button
+                type="button"
+                className="mt-2 rounded-lg border border-border px-3 py-2 text-xs"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(
+                      `세로 쇼츠용 9:16 이미지 한 장을 만들어 주세요.\n장면: ${shot.visualDescription}\n일관된 사실적인 스타일. 중요한 피사체는 중앙에 배치해 주세요. 자막과 글자, 로고, 워터마크는 이미지에 넣지 마세요. 자막은 영상 편집에서 별도로 넣습니다.`,
+                    );
+                    toast.success(
+                      "설명을 복사했습니다. Meta AI에 붙여넣어 주세요.",
+                    );
+                  } catch {
+                    toast.error(
+                      "복사하지 못했습니다. 위 장면 설명을 직접 복사해 주세요.",
+                    );
+                  }
+                }}
+              >
+                장면 설명 복사
+              </button>
               <p className="mt-1 font-mono text-[11px] text-muted-foreground">
                 {shot.durationSeconds}s · {shot.strategy} ·{" "}
                 {shot.execution.status}
