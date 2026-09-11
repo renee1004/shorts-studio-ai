@@ -7,3 +7,4 @@ export * from "./studio";
 export * from "./factory";
 export * from "./workspace";
 export * from "./creation";
+export * from "./notebooklm";

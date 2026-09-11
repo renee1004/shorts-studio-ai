@@ -54,6 +54,9 @@ services:
 
   web:
     <<: *app
+    volumes:
+      - media:/data/media
+      - ./.data/notebooklm:/data/notebooklm
     ports:
       - "${WEB_BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-43117}:43117"
     depends_on:

@@ -27,6 +27,7 @@ export function CreationClient({
   demo,
   initialProject,
   initialDetail,
+  initialImport,
   narrationEnabled,
 }: {
   workspaceId: string;
@@ -35,17 +36,20 @@ export function CreationClient({
   narrationEnabled: boolean;
   initialProject?: { id: string; title: string };
   initialDetail?: CreationDetail;
+  initialImport?: { title: string; text: string };
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<"topic" | "notes" | "script">(
-    initialDetail?.latestScript?.modelName === "user-import"
+    initialImport || initialDetail?.latestScript?.modelName === "user-import"
       ? "script"
       : initialDetail?.brief?.modelName === "user-import"
         ? "notes"
         : "topic",
   );
-  const [suppliedText, setSuppliedText] = useState("");
-  const [topic, setTopic] = useState(initialProject?.title ?? "");
+  const [suppliedText, setSuppliedText] = useState(initialImport?.text ?? "");
+  const [topic, setTopic] = useState(
+    initialProject?.title ?? initialImport?.title ?? "",
+  );
   const [started, setStarted] = useState(Boolean(initialProject));
   const [projectId, setProjectId] = useState<string | null>(
     initialProject?.id ?? null,
@@ -148,6 +152,17 @@ export function CreationClient({
         </p>
       )}
       <section className="space-y-4 rounded-2xl border bg-card p-6">
+        {!initialProject && (
+          <Link className="block underline" href="/import/notebooklm">
+            NotebookLM에서 가져오기 → 노트·대본 선택 → 원문 그대로 저장
+          </Link>
+        )}
+        {initialImport && (
+          <p className="text-sm text-muted-foreground">
+            저장한 원문의 제작용 사본입니다. 대본을 편집해도 저장한 원문은
+            바뀌지 않습니다.
+          </p>
+        )}
         {!initialProject && (
           <label className="block text-sm font-semibold">
             시작 방법
