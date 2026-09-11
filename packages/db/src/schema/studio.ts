@@ -53,6 +53,7 @@ export const contentProjects = pgTable("content_projects", {
   status: projectStatusEnum("status").notNull().default("draft"),
   ownerUserId: uuid("owner_user_id").notNull(),
   selectedAngleId: uuid("selected_angle_id"),
+  creationInputHash: text("creation_input_hash"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

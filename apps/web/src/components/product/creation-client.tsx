@@ -1,16 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { creationInputSchema, parseImportedScenes } from "@shorts-os/contracts";
 import {
   creationRequest,
   CreationRequestUncertainError,
 } from "@/lib/creation-request";
+import { CreationStart } from "./creation-start";
+import { CreationSteps } from "./creation-steps";
 import { Button } from "@/components/ui/button";
 
-type Detail = {
+export type CreationDetail = {
   project: { id: string; title: string };
-  latestScript: { body: string } | null;
+  latestScript: { scriptText: string; modelName: string | null } | null;
+  brief?: { modelName: string | null } | null;
   shots: unknown[];
 };
 const stages = [
@@ -23,6 +28,8 @@ export function CreationClient({
   canWrite,
   demo,
   initialProject,
+  initialDetail,
+  initialImport,
   narrationEnabled,
 }: {
   workspaceId: string;
@@ -30,16 +37,41 @@ export function CreationClient({
   demo: boolean;
   narrationEnabled: boolean;
   initialProject?: { id: string; title: string };
+  initialDetail?: CreationDetail;
+  initialImport?: { title: string; text: string };
 }) {
-  const [mode, setMode] = useState<"topic" | "notes" | "script">("topic");
-  const [suppliedText, setSuppliedText] = useState("");
-  const [topic, setTopic] = useState(initialProject?.title ?? "");
+  const router = useRouter();
+  const [showForm, setShowForm] = useState(
+    Boolean(initialProject || initialImport),
+  );
+  const [mode, setMode] = useState<"topic" | "notes" | "script">(
+    initialImport || initialDetail?.latestScript?.modelName === "user-import"
+      ? "script"
+      : initialDetail?.brief?.modelName === "user-import"
+        ? "notes"
+        : "topic",
+  );
+  const [suppliedText, setSuppliedText] = useState(initialImport?.text ?? "");
+  const organized = useMemo(
+    () =>
+      mode === "script" && suppliedText.trim()
+        ? parseImportedScenes(suppliedText)
+        : null,
+    [mode, suppliedText],
+  );
+  const [topic, setTopic] = useState(
+    initialProject?.title ?? initialImport?.title ?? "",
+  );
   const [started, setStarted] = useState(Boolean(initialProject));
   const [projectId, setProjectId] = useState<string | null>(
     initialProject?.id ?? null,
   );
-  const [detail, setDetail] = useState<Detail | null>(null);
-  const [completed, setCompleted] = useState<string[]>([]);
+  const [detail, setDetail] = useState<CreationDetail | null>(
+    initialDetail ?? null,
+  );
+  const [completed, setCompleted] = useState<string[]>(
+    initialDetail?.latestScript ? ["script"] : [],
+  );
   const [active, setActive] = useState<string | null>(null);
   const [voiceId, setVoiceId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -69,20 +101,26 @@ export function CreationClient({
     setError("");
     setElapsed(0);
     setActive("start");
+    let id = projectId;
     try {
       operation.current ??= crypto.randomUUID();
-      setStarted(true);
-      let id = projectId;
       if (!id) {
-        const created = await post<Detail>("creation", {
+        const parsed = creationInputSchema.safeParse({
           mode,
           suppliedText,
           topic: topic.trim(),
           operationId: operation.current,
         });
+        if (!parsed.success) {
+          setError(parsed.error.issues[0]?.message ?? "입력을 확인해 주세요.");
+          return;
+        }
+        setStarted(true);
+        const created = await post<CreationDetail>("creation", parsed.data);
         id = created.project.id;
         setProjectId(id);
         setDetail(created);
+        window.history.replaceState(null, "", `/create?project=${id}`);
       }
       if (mode === "script") {
         setCompleted(["script"]);
@@ -93,23 +131,15 @@ export function CreationClient({
       )) {
         setElapsed(0);
         setActive(stage.key);
-        const result = await post<Detail>(`projects/${id}/prepare`, {
+        const result = await post<CreationDetail>(`projects/${id}/prepare`, {
           stage: stage.key,
         });
         setDetail(result);
         setCompleted((previous) => [...new Set([...previous, stage.key])]);
       }
-      if (narrationEnabled) {
-        setElapsed(0);
-        setActive("narration");
-        const voice = await post<{ assetId: string }>(
-          `projects/${id}/narration`,
-          {},
-        );
-        setVoiceId(voice.assetId);
-      }
     } catch (caught) {
       if (caught instanceof CreationRequestUncertainError) setUncertain(true);
+      else if (!id) setStarted(false);
       setError(
         caught instanceof Error ? caught.message : "제작 중 문제가 생겼습니다.",
       );
@@ -118,126 +148,226 @@ export function CreationClient({
       running.current = false;
     }
   }
+  if (!showForm)
+    return (
+      <CreationStart
+        onChoose={(nextMode) => {
+          setMode(nextMode);
+          setShowForm(true);
+        }}
+      />
+    );
   return (
     <div className="mx-auto w-full max-w-3xl space-y-7 py-6">
       <header>
         <p className="text-sm font-semibold text-primary">새 영상 만들기</p>
-        <h1 className="mt-2 text-3xl font-black">어떤 이야기를 만들까요?</h1>
+        <h1 className="mt-2 text-3xl font-black">
+          {completed.includes("script")
+            ? "대본이 준비됐어요"
+            : mode === "script"
+              ? "대본을 입력해 주세요"
+              : "어떤 이야기를 만들까요?"}
+        </h1>
         <p className="mt-3 text-muted-foreground">
-          주제를 입력하면 자료 조사부터 대본과 장면 구성까지 이어서 준비합니다.
+          {mode === "script"
+            ? "영상 제목과 대본을 확인한 뒤 저장하세요."
+            : "AI가 대본을 준비합니다. 실행 시 API 비용이 발생할 수 있어요."}
         </p>
       </header>
+      <CreationSteps />
+      {!started && (
+        <button
+          type="button"
+          className="text-sm text-muted-foreground underline"
+          onClick={() => setShowForm(false)}
+        >
+          ← 시작 방법 바꾸기
+        </button>
+      )}
       {demo && (
         <p className="rounded-xl bg-secondary p-4 text-sm">
           체험 모드입니다. 예시 대본으로 흐름을 확인하며, 실제 AI 조사·음성
           생성·게시를 실행하지 않습니다.
         </p>
       )}
-      <section className="space-y-4 rounded-2xl border bg-card p-6">
-        {!initialProject && (
-          <label className="block text-sm font-semibold">
-            시작 방법
-            <select
-              className="mt-2 block w-full rounded-lg border bg-background p-3"
-              value={mode}
-              disabled={started || Boolean(active)}
-              onChange={(event) => setMode(event.target.value as typeof mode)}
+      {!completed.includes("script") && (
+        <section className="space-y-4 rounded-2xl border bg-card p-6">
+          {initialImport && (
+            <p className="text-sm text-muted-foreground">
+              저장한 원문의 제작용 사본입니다. 대본을 편집해도 저장한 원문은
+              바뀌지 않습니다.
+            </p>
+          )}
+          {mode !== "topic" && (
+            <details
+              open={!organized?.isTable || organized.issues.length > 0}
+              className="rounded-xl border p-4"
             >
-              <option value="topic">주제만 입력 — 새로 조사하기</option>
-              <option value="notes">정리 자료로 대본 만들기</option>
-              <option value="script">
-                완성 대본 가져오기 — AI 생성 없이 저장
-              </option>
-            </select>
-          </label>
-        )}
-        {mode !== "topic" && (
-          <label className="block text-sm font-semibold">
-            {mode === "notes" ? "NotebookLM 등에서 정리한 자료" : "완성 대본"}
-            <textarea
-              className="mt-2 w-full rounded-lg border bg-background p-3"
-              rows={8}
-              value={suppliedText}
-              maxLength={mode === "notes" ? 4000 : 12800}
-              disabled={started || Boolean(active)}
-              onChange={(event) => setSuppliedText(event.target.value)}
-            />
-            <span className="text-xs font-normal text-muted-foreground">
-              {mode === "notes"
-                ? "최대 4,000자. 새 조사는 생략하며 구성안·대본·음성 생성에는 API 사용량이 발생할 수 있습니다."
-                : "장면별 줄바꿈으로 2~16개 문단, 문단당 800자 이내. 문구를 다시 생성하지 않습니다. 음성은 저장 후 별도로 진행합니다."}
-            </span>
-          </label>
-        )}
-        <label htmlFor="creation-topic" className="block text-sm font-semibold">
-          영상 주제
-        </label>
-        <textarea
-          id="creation-topic"
-          value={topic}
-          disabled={Boolean(active) || started}
-          onChange={(event) => setTopic(event.target.value)}
-          maxLength={200}
-          rows={3}
-          placeholder="예: 퇴근 후 10분 만에 책상 정리하는 방법"
-          className="w-full resize-y rounded-xl border bg-background p-4"
-        />
-        <p className="text-sm text-muted-foreground">
-          기본 설정: 한국어 · 45초 목표 · 세로 영상 · 게시 전 직접 검토
-        </p>
-        <Button
-          onClick={start}
-          disabled={
-            uncertain ||
-            !canWrite ||
-            Boolean(active) ||
-            topic.trim().length < 2 ||
-            (mode !== "topic" && !suppliedText.trim()) ||
-            (completed.includes("script") &&
-              (mode === "script" || !narrationEnabled || Boolean(voiceId)))
-          }
-          className="w-full"
-        >
-          {active
-            ? `준비 중… ${elapsed}초`
-            : error
-              ? "저장된 단계부터 다시 시도"
-              : mode === "script"
-                ? "대본 저장하기"
-                : "제작 준비 시작"}
-        </Button>
-        {!canWrite && (
-          <p className="text-sm">제작 권한이 있는 멤버만 시작할 수 있습니다.</p>
-        )}
-        {uncertain && (
-          <Link
-            className="block underline"
-            href={projectId ? `/studio/${projectId}` : "/studio"}
+              <summary className="cursor-pointer text-sm font-semibold">
+                원문 확인·수정
+              </summary>
+              <label className="block text-sm font-semibold">
+                {mode === "notes"
+                  ? "NotebookLM 등에서 정리한 자료"
+                  : "완성 대본"}
+                <textarea
+                  className="mt-2 w-full rounded-lg border bg-background p-3"
+                  rows={8}
+                  value={suppliedText}
+                  maxLength={mode === "notes" ? 4000 : 500000}
+                  disabled={started || Boolean(active)}
+                  onChange={(event) => {
+                    setSuppliedText(event.target.value);
+                    setError("");
+                  }}
+                />
+                <span className="text-xs font-normal text-muted-foreground">
+                  {mode === "notes"
+                    ? "최대 4,000자. 새 조사는 생략하며 구성안·대본 생성에 API를 사용합니다. 음성은 저장 후 별도로 선택합니다."
+                    : "표 대본도 그대로 넣으세요. 시간·대사·장면·자막을 자동으로 나눕니다."}
+                </span>
+              </label>
+            </details>
+          )}
+          {organized && (
+            <section className="space-y-3" aria-label="자동 정리한 장면">
+              <h2 className="font-semibold">
+                {organized.isTable ? "표에서 정리한 장면" : "장면 미리보기"} ·{" "}
+                {organized.scenes.length}개
+              </h2>
+              {organized.issues.length > 0 ? (
+                <div
+                  role="alert"
+                  className="rounded-xl border border-destructive/40 p-4 text-sm"
+                >
+                  <p className="font-semibold">이 부분만 확인해 주세요</p>
+                  <ul className="mt-2 list-disc pl-5">
+                    {organized.issues.map((issue, i) => (
+                      <li key={i}>{issue}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  아래 내용을 확인하고 저장하세요. AI 재작성 없이 정리했습니다.
+                </p>
+              )}
+              <div className="max-h-96 space-y-3 overflow-y-auto">
+                {organized.scenes.slice(0, 16).map((scene, i) => (
+                  <article
+                    key={i}
+                    className="space-y-2 rounded-xl border bg-muted/30 p-4"
+                  >
+                    <h3 className="text-sm font-semibold">
+                      장면 {i + 1} · {Number(scene.startSeconds.toFixed(2))}–
+                      {Number(scene.endSeconds.toFixed(2))}초
+                    </h3>
+                    <p className="whitespace-pre-wrap text-sm">
+                      {scene.narration}
+                    </p>
+                    {scene.visualDescription && (
+                      <p className="text-sm text-muted-foreground">
+                        화면: {scene.visualDescription}
+                      </p>
+                    )}
+                    {scene.onScreenText && (
+                      <p className="text-sm text-primary">
+                        자막: {scene.onScreenText}
+                      </p>
+                    )}
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+          <label
+            htmlFor="creation-topic"
+            className="block text-sm font-semibold"
           >
-            저장된 작업 확인하기
-          </Link>
-        )}
-        {error && (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
+            영상 주제
+          </label>
+          <textarea
+            id="creation-topic"
+            value={topic}
+            disabled={Boolean(active) || started}
+            onChange={(event) => setTopic(event.target.value)}
+            maxLength={200}
+            rows={3}
+            placeholder="예: 퇴근 후 10분 만에 책상 정리하는 방법"
+            className="w-full resize-y rounded-xl border bg-background p-4"
+          />
+          <p className="text-sm text-muted-foreground">
+            한국어 · 세로 영상 ·{" "}
+            {organized?.isTable && !organized.issues.length
+              ? `${organized.scenes.at(-1)!.endSeconds}초 · 입력한 시간 적용`
+              : "45초 목표"}
           </p>
-        )}
-      </section>
+          <Button
+            onClick={start}
+            disabled={
+              uncertain ||
+              !canWrite ||
+              Boolean(active) ||
+              topic.trim().length < 2 ||
+              (!projectId && mode !== "topic" && !suppliedText.trim()) ||
+              completed.includes("script") ||
+              Boolean(mode === "script" && organized?.issues.length)
+            }
+            className="w-full"
+          >
+            {active
+              ? `준비 중… ${elapsed}초`
+              : error
+                ? "저장된 단계부터 다시 시도"
+                : mode === "script"
+                  ? "확인하고 저장"
+                  : "제작 준비 시작"}
+          </Button>
+          {!canWrite && (
+            <p className="text-sm">
+              제작 권한이 있는 멤버만 시작할 수 있습니다.
+            </p>
+          )}
+          {uncertain && (
+            <Link
+              className="block underline"
+              href={projectId ? `/studio/${projectId}` : "/studio"}
+            >
+              저장된 작업 확인하기
+            </Link>
+          )}
+        </section>
+      )}
+      {error && (
+        <p
+          role="alert"
+          className="rounded-xl border border-destructive/40 p-4 text-sm text-destructive"
+        >
+          {error}
+        </p>
+      )}
       {(active || projectId || error) && (
-        <section aria-live="polite" className="rounded-2xl border p-6">
-          <h2 className="font-bold">제작 진행 상황</h2>
+        <details
+          open={Boolean(active) || undefined}
+          className="rounded-2xl border p-5"
+        >
+          <summary className="cursor-pointer font-semibold">
+            {active ? `대본 준비 중 · ${elapsed}초` : "진행 내역 보기"}
+          </summary>
           <ol className="mt-4 space-y-3">
             {stages.map((stage) => (
               <li key={stage.key} className="flex justify-between text-sm">
                 <span>{stage.label}</span>
                 <span>
-                  {mode === "notes" && stage.key === "research"
-                    ? "제공 자료 사용"
-                    : completed.includes(stage.key)
-                      ? "완료"
-                      : active === stage.key
-                        ? "진행 중"
-                        : "대기"}
+                  {mode === "script" && stage.key !== "script"
+                    ? "생략 · 완성 대본 사용"
+                    : mode === "notes" && stage.key === "research"
+                      ? "제공 자료 사용"
+                      : completed.includes(stage.key)
+                        ? "완료"
+                        : active === stage.key
+                          ? "진행 중"
+                          : "대기"}
                 </span>
               </li>
             ))}
@@ -249,7 +379,7 @@ export function CreationClient({
                     ? "완료"
                     : active === "narration"
                       ? "진행 중"
-                      : "대기"}
+                      : "선택 사항 · 별도 실행"}
                 </span>
               </li>
             )}
@@ -258,7 +388,7 @@ export function CreationClient({
             화면을 닫으면 다음 단계는 진행되지 않습니다. 저장된 결과는 내
             작업함에서 확인할 수 있습니다.
           </p>
-        </section>
+        </details>
       )}
       {completed.includes("script") && detail && (
         <section className="space-y-4 rounded-2xl border bg-card p-6">
@@ -270,11 +400,12 @@ export function CreationClient({
               src={`/api/v1/workspaces/${workspaceId}/assets/${voiceId}/file`}
             />
           )}
-          {mode === "script" && narrationEnabled && !voiceId && (
+          {narrationEnabled && !voiceId && (
             <Button
-              disabled={Boolean(active) || uncertain}
+              disabled={!canWrite || Boolean(active) || uncertain}
               onClick={async () => {
-                if (!projectId || running.current) return;
+                if (!canWrite || uncertain || !projectId || running.current)
+                  return;
                 running.current = true;
                 setElapsed(0);
                 setActive("narration");
@@ -306,14 +437,14 @@ export function CreationClient({
           <p className="text-sm">
             장면 {detail.shots.length}개 ·{" "}
             {mode === "script"
-              ? "입력한 대본을 저장했습니다. 장면 시간은 균등 배분된 초안이므로 검토해 주세요."
+              ? "입력한 대본을 저장했습니다. 다음 화면에서 장면과 시간을 확인해 주세요."
               : "구성안 3개 중 첫 번째를 기본 적용했습니다. 검토 화면에서 바꿀 수 있습니다."}
           </p>
           <Link
             className="inline-block rounded-lg bg-primary px-5 py-3 font-semibold text-primary-foreground"
             href={`/studio/${detail.project.id}`}
           >
-            대본 확인·수정하기
+            다음: 대본 확인하고 장면 준비 →
           </Link>
           <p className="text-sm text-muted-foreground">
             사실관계와 출처를 확인한 뒤 승인해 주세요. 지금은 완성 영상이 아닌
@@ -321,8 +452,10 @@ export function CreationClient({
           </p>
         </section>
       )}
-      <section className="rounded-2xl border border-dashed p-6">
-        <h2 className="font-bold">영상 완성까지 남은 연결</h2>
+      <details className="rounded-xl border p-4">
+        <summary className="cursor-pointer text-sm text-muted-foreground">
+          도움말 · 영상과 음성 준비
+        </summary>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
           음성 생성은 Gemini 음성 모델 연결 후 사용할 수 있습니다. 스톡 영상
           자동 수집과 YouTube 자동 게시는 아직 연결되지 않았습니다. 현재 영상
@@ -331,7 +464,7 @@ export function CreationClient({
         <Link href="/factory" className="mt-3 inline-block text-sm underline">
           영상 합성 작업 열기
         </Link>
-      </section>
+      </details>
       <div className="flex gap-5 text-sm">
         <Link href="/studio" className="underline">
           내 작업함
@@ -343,8 +476,10 @@ export function CreationClient({
           <button
             className="underline"
             onClick={() => {
+              router.push("/create");
               operation.current = null;
               setStarted(false);
+              setShowForm(false);
               setVoiceId(null);
               setProjectId(null);
               setDetail(null);

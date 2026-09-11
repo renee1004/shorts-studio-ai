@@ -2,7 +2,10 @@ import { generateNarration, findNarration } from "../narration";
 import { pcmToWave } from "@shorts-os/providers";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
-import { readdir, rm } from "node:fs/promises";
+import { readdir, rm, mkdtemp, readFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { runCommand, probeMedia } from "../render-engine";
 import {
   closePools,
   claimQueuedRenderJob,
@@ -30,6 +33,7 @@ import {
   localMediaRoot,
   retryFailedShots,
   saveUploadedClip,
+  generateShotImage,
 } from "../factory";
 
 const serviceUrl = process.env.DATABASE_URL;
@@ -232,6 +236,212 @@ async function mediaFileCount(): Promise<number> {
 }
 
 describe("Phase 4.1 Demo render integrity", () => {
+  it("다른 요청이 장면 잠금을 가진 동안 유료 호출을 시작하지 않는다", async () => {
+    const fixture = await createFixture();
+    const shotId = fixture.first.shots[0]!.id;
+    let release!: () => void;
+    let acquired!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      acquired = resolve;
+    });
+    const hold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const holder = withUserSession(appUrl as string, owner, async (db) => {
+      await db.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${`image:${workspaceId}:${shotId}`}, 0))`,
+      );
+      acquired();
+      await hold;
+    });
+    await ready;
+    let calls = 0;
+    try {
+      await expect(
+        withUserSession(appUrl as string, owner, (db) =>
+          generateShotImage({
+            db,
+            workspaceId,
+            userId: owner,
+            projectId: fixture.project.id,
+            shotId,
+            model: "fixture",
+            provider: {
+              generate: async () => {
+                calls++;
+                return { bytes: Buffer.from("bad"), mimeType: "image/png" };
+              },
+            },
+          }),
+        ),
+      ).rejects.toMatchObject({ code: "CONFLICT" });
+      expect(calls).toBe(0);
+    } finally {
+      release();
+      await holder;
+    }
+  });
+
+  it("변환 실패 후 재시도에서도 받은 이미지를 재사용한다", async () => {
+    const fixture = await createFixture();
+    let calls = 0;
+    const generate = () =>
+      withUserSession(appUrl as string, owner, (db) =>
+        generateShotImage({
+          db,
+          workspaceId,
+          userId: owner,
+          projectId: fixture.project.id,
+          shotId: fixture.first.shots[0]!.id,
+          model: "fixture",
+          provider: {
+            generate: async () => {
+              calls++;
+              return {
+                bytes: Buffer.from("invalid-image-fixture"),
+                mimeType: "image/png",
+              };
+            },
+          },
+        }),
+      );
+    await expect(generate()).rejects.toMatchObject({
+      code: "VALIDATION_FAILED",
+    });
+    await expect(generate()).rejects.toMatchObject({
+      code: "VALIDATION_FAILED",
+    });
+    expect(calls).toBe(1);
+  }, 60_000);
+  it("Gemini 이미지를 저장한 뒤 같은 장면은 유료 호출 없이 재사용한다", async () => {
+    const fixture = await createFixture();
+    const temp = await mkdtemp(path.join(os.tmpdir(), "shorts-gemini-"));
+    try {
+      const imagePath = path.join(temp, "scene.png");
+      await runCommand("ffmpeg", [
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=blue:s=64x96",
+        "-frames:v",
+        "1",
+        "-threads",
+        "1",
+        imagePath,
+      ]);
+      let calls = 0;
+      const provider = {
+        generate: async () => {
+          calls++;
+          return { bytes: await readFile(imagePath), mimeType: "image/png" };
+        },
+      };
+      const generate = () =>
+        withUserSession(appUrl as string, owner, (db) =>
+          generateShotImage({
+            db,
+            workspaceId,
+            userId: owner,
+            projectId: fixture.project.id,
+            shotId: fixture.first.shots[0]!.id,
+            model: "fixture-image",
+            provider,
+          }),
+        );
+      const first = await generate();
+      const second = await generate();
+      expect(second).toEqual({ assetId: first.assetId, reused: true });
+      expect(calls).toBe(1);
+      const asset = (
+        await listMediaAssetsForProject(
+          service,
+          workspaceId,
+          fixture.project.id,
+        )
+      ).find((item) => item.id === first.assetId)!;
+      expect(asset.provider).toBe("gemini_image");
+      expect(asset.mimeType).toBe("video/mp4");
+      expect(asset.generationParameters).toMatchObject({
+        model: "fixture-image",
+      });
+    } finally {
+      await rm(temp, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it("승인 없는 장면은 Gemini를 호출하기 전에 거절한다", async () => {
+    const fixture = await createFixture({ approved: false });
+    let calls = 0;
+    await expect(
+      withUserSession(appUrl as string, owner, (db) =>
+        generateShotImage({
+          db,
+          workspaceId,
+          userId: owner,
+          projectId: fixture.project.id,
+          shotId: fixture.first.shots[0]!.id,
+          model: "fixture-image",
+          provider: {
+            generate: async () => {
+              calls++;
+              return { bytes: Buffer.from("bad"), mimeType: "image/png" };
+            },
+          },
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "INVALID_STATE_TRANSITION" });
+    expect(calls).toBe(0);
+  });
+  it("업로드한 이미지를 장면 길이의 영상으로 변환하고 새 합성에서 재사용한다", async () => {
+    const fixture = await createFixture();
+    const before = await enqueue(fixture, "before-image");
+    await executeRenderJob(before.renderJobId, service);
+    const temp = await mkdtemp(path.join(os.tmpdir(), "shorts-image-"));
+    try {
+      const imagePath = path.join(temp, "scene.png");
+      await runCommand("ffmpeg", [
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=red:s=64x96",
+        "-frames:v",
+        "1",
+        "-threads",
+        "1",
+        imagePath,
+      ]);
+      const shot = fixture.first.shots[0]!;
+      const asset = await saveUploadedClip({
+        db: service,
+        workspaceId,
+        userId: owner,
+        projectId: fixture.project.id,
+        shotId: shot.id,
+        bytes: await readFile(imagePath),
+        mimeType: "image/png",
+        fileName: "scene.png",
+      });
+      expect(asset.mimeType).toBe("video/mp4");
+      const probe = await probeMedia(asset.storageUri!);
+      expect(probe.width).toBe(1080);
+      expect(probe.height).toBe(1920);
+      expect(probe.durationSeconds).toBeCloseTo(
+        Number(shot.endSeconds) - Number(shot.startSeconds),
+        1,
+      );
+      const after = await enqueue(fixture, "after-image");
+      expect(after.commandHash).not.toBe(before.commandHash);
+      const job = await getRenderJob(service, workspaceId, after.renderJobId);
+      expect(
+        renderManifestSchema.parse(job!.renderManifest).shots[0],
+      ).toMatchObject({ clipAssetId: asset.id, strategy: "user_upload" });
+    } finally {
+      await rm(temp, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it("승인 레코드 없는 프로젝트 렌더를 거부한다", async () => {
     const fixture = await createFixture({ approved: false });
     await expect(enqueue(fixture, "no-approval")).rejects.toMatchObject({
