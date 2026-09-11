@@ -121,9 +121,18 @@ export const POST = route<{ workspaceId: string }>(
         "CONFLICT",
         "NotebookLM 원문이 변경되었습니다. 다시 선택하여 확인한 뒤 저장해 주세요.",
       );
-    const result = await context.run(({ db, user, workspaceId }) =>
-      saveNotebookImport(db, workspaceId, user.id, document),
-    );
+    const result = await context
+      .run(({ db, user, workspaceId }) =>
+        saveNotebookImport(db, workspaceId, user.id, document),
+      )
+      .catch((error: unknown) => {
+        if (error instanceof DomainError) throw error;
+        // Database errors may include bound original text; keep it out of request logs.
+        throw new DomainError(
+          "INTERNAL_ERROR",
+          "원문 저장 결과를 확인하지 못했습니다. 저장한 원문 목록을 확인한 뒤 다시 시도해 주세요.",
+        );
+      });
     return privateResponse(result, requestId, result.reused ? 200 : 201);
   },
 );

@@ -5,7 +5,9 @@ import { GET, POST } from "../app/api/v1/workspaces/[workspaceId]/notebooklm/rou
 const mocks = vi.hoisted(() => ({
   context: vi.fn(), read: vi.fn(), save: vi.fn(), list: vi.fn(), get: vi.fn(),
   connection: vi.fn(), notebooks: vi.fn(), items: vi.fn(),
+  logError: vi.fn(), logWarn: vi.fn(),
 }));
+vi.mock("@shorts-os/observability", () => ({ createLogger: () => ({ info: vi.fn(), warn: mocks.logWarn, error: mocks.logError }), newRequestId: () => "notebook-test" }));
 vi.mock("@/server/context", () => ({ workspaceContext: mocks.context }));
 vi.mock("@/server/notebooklm", () => ({ notebookConnection: mocks.connection, listRemoteNotebooks: mocks.notebooks, listRemoteItems: mocks.items, readRemoteItem: mocks.read }));
 vi.mock("@shorts-os/services", () => ({ saveNotebookImport: mocks.save, listNotebookImports: mocks.list, getNotebookImport: mocks.get }));
@@ -52,5 +54,13 @@ describe("NotebookLM import HTTP boundary", () => {
     expect(mocks.list).toHaveBeenCalledWith("scoped-db", workspaceId, userId);
     expect(mocks.read).not.toHaveBeenCalled();
     expect(mocks.connection).not.toHaveBeenCalled();
+  });
+  it("does not log original text from a database failure", async () => {
+    mocks.save.mockRejectedValue(new Error("SQL parameters contain PRIVATE_NOTE"));
+    const response = await post({ ...original, contentHash });
+    expect(response.status).toBe(500);
+    expect(await response.text()).not.toContain("PRIVATE_NOTE");
+    expect(mocks.logError).not.toHaveBeenCalled();
+    expect(JSON.stringify(mocks.logWarn.mock.calls)).not.toContain("PRIVATE_NOTE");
   });
 });
