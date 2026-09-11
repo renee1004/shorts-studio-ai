@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { creationInputSchema } from "@shorts-os/contracts";
 import {
   creationRequest,
@@ -35,6 +36,7 @@ export function CreationClient({
   initialProject?: { id: string; title: string };
   initialDetail?: CreationDetail;
 }) {
+  const router = useRouter();
   const [mode, setMode] = useState<"topic" | "notes" | "script">(
     initialDetail?.latestScript?.modelName === "user-import"
       ? "script"
@@ -357,7 +359,7 @@ export function CreationClient({
           <button
             className="underline"
             onClick={() => {
-              window.location.assign("/create");
+              router.push("/create");
               operation.current = null;
               setStarted(false);
               setVoiceId(null);
@@ -376,3 +378,4 @@ export function CreationClient({
     </div>
   );
 }
+
