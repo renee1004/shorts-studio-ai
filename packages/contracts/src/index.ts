@@ -7,4 +7,5 @@ export * from "./studio";
 export * from "./factory";
 export * from "./workspace";
 export * from "./creation";
+export * from "./script-import";
 export * from "./notebooklm";

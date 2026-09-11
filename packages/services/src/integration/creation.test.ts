@@ -61,6 +61,36 @@ const create = (request: unknown, userId = owner) =>
   );
 
 describe("creation imports without providers", () => {
+  it("persists table timing, captions, visuals and the original with citations", async () => {
+    const text =
+      "| 시간 | 내레이션 | 화면에 보이는 것 | 자막 |\r\n|---|---|---|---|\r\n| **0~3초** | **첫 문장** [4] | 파란 화면 | 시작 |\r\n| 3~12초 | 둘째 문장 | 서류 화면 | 마무리 |\r\n[4] https://example.com/source";
+    const request = { ...input(), suppliedText: text };
+    const result = await create(request);
+    expect(result.project.targetDurationSeconds).toBe(12);
+    expect(result.latestScript?.scriptText).toBe("첫 문장\n둘째 문장");
+    expect(
+      result.shots.map((s) => [
+        Number(s.startSeconds),
+        Number(s.endSeconds),
+        s.onScreenText,
+        s.visualDescription,
+      ]),
+    ).toEqual([
+      [0, 3, "시작", "파란 화면"],
+      [3, 12, "마무리", "서류 화면"],
+    ]);
+    expect(result.latestScript?.originalitySummary).toMatchObject({
+      originalText: text,
+      importFormat: "markdown-table",
+    });
+    expect((await create(request)).project.id).toBe(result.project.id);
+    await expect(
+      create({
+        ...request,
+        suppliedText: text.replace("파란 화면", "다른 화면"),
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+  });
   it("takes an imported fixture through explicit QA/approval and a render with synthetic audio", async () => {
     const detail = await create(input());
     const options = {

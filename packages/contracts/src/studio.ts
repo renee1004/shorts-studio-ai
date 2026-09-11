@@ -48,7 +48,9 @@ export const importReferenceVideoSchema = z.object({
   url: z.string().url().max(500),
   transcript: z.string().max(20_000).optional(),
 });
-export type ImportReferenceVideoInput = z.infer<typeof importReferenceVideoSchema>;
+export type ImportReferenceVideoInput = z.infer<
+  typeof importReferenceVideoSchema
+>;
 
 export const analyzeDnaSchema = z.object({
   forceRefresh: z.boolean().default(false),
@@ -85,10 +87,24 @@ export const runQaSchema = z.object({
   scriptId: z.string().uuid().optional(),
   checks: z
     .array(
-      z.enum(["fact", "originality", "policy", "brand", "duration", "caption_readability"]),
+      z.enum([
+        "fact",
+        "originality",
+        "policy",
+        "brand",
+        "duration",
+        "caption_readability",
+      ]),
     )
     .min(1)
-    .default(["fact", "originality", "policy", "brand", "duration", "caption_readability"]),
+    .default([
+      "fact",
+      "originality",
+      "policy",
+      "brand",
+      "duration",
+      "caption_readability",
+    ]),
 });
 
 export const projectApprovalSchema = z.object({
@@ -125,6 +141,7 @@ export const scriptBeatSchema = z.object({
   purpose: z.string().min(1).max(40),
   narration: z.string().min(1).max(800),
   onScreenText: z.string().max(80).default(""),
+  visualDescription: z.string().max(600).optional(),
   claimKeys: z.array(z.string().min(1).max(80)).default([]),
 });
 
@@ -163,7 +180,13 @@ export const shotDraftSchema = z.object({
   cameraDirection: z.string().max(200).nullable().default(null),
   generationPrompt: z.string().max(800).nullable().default(null),
   negativePrompt: z.string().max(400).nullable().default(null),
-  assetStrategy: z.enum(["ai_video", "ai_image", "stock", "user_upload", "motion_graphic"]),
+  assetStrategy: z.enum([
+    "ai_video",
+    "ai_image",
+    "stock",
+    "user_upload",
+    "motion_graphic",
+  ]),
 });
 export type ShotDraft = z.infer<typeof shotDraftSchema>;
 
@@ -220,9 +243,16 @@ export function normalizeFactualClaims(
 ): FactualClaim[] {
   return claims
     .map((claim) => {
-      const validIndexes = claim.citationIndexes.filter((index) => index < citationCount);
+      const validIndexes = claim.citationIndexes.filter(
+        (index) => index < citationCount,
+      );
       if (validIndexes.length > 0) {
-        return { ...claim, citationIndexes: validIndexes, sourceIds: [], unverified: false };
+        return {
+          ...claim,
+          citationIndexes: validIndexes,
+          sourceIds: [],
+          unverified: false,
+        };
       }
       return { ...claim, citationIndexes: [], sourceIds: [], unverified: true };
     })
@@ -230,7 +260,9 @@ export function normalizeFactualClaims(
 }
 
 export function claimsHaveCitationOrFlag(claims: FactualClaim[]): boolean {
-  return claims.every((claim) => claim.unverified || claim.citationIndexes.length > 0);
+  return claims.every(
+    (claim) => claim.unverified || claim.citationIndexes.length > 0,
+  );
 }
 
 const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
@@ -247,11 +279,20 @@ export function parseYouTubeVideoId(urlOrId: string): string | null {
       const id = parsed.pathname.split("/").filter(Boolean)[0];
       return id && YOUTUBE_ID.test(id) ? id : null;
     }
-    if (host === "youtube.com" || host === "m.youtube.com" || host === "music.youtube.com") {
+    if (
+      host === "youtube.com" ||
+      host === "m.youtube.com" ||
+      host === "music.youtube.com"
+    ) {
       const fromQuery = parsed.searchParams.get("v");
       if (fromQuery && YOUTUBE_ID.test(fromQuery)) return fromQuery;
       const parts = parsed.pathname.split("/").filter(Boolean);
-      if ((parts[0] === "shorts" || parts[0] === "embed" || parts[0] === "live") && parts[1]) {
+      if (
+        (parts[0] === "shorts" ||
+          parts[0] === "embed" ||
+          parts[0] === "live") &&
+        parts[1]
+      ) {
         return YOUTUBE_ID.test(parts[1]) ? parts[1] : null;
       }
     }

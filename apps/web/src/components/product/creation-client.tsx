@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { creationInputSchema } from "@shorts-os/contracts";
+import { creationInputSchema, parseImportedScenes } from "@shorts-os/contracts";
 import {
   creationRequest,
   CreationRequestUncertainError,
@@ -52,6 +52,13 @@ export function CreationClient({
         : "topic",
   );
   const [suppliedText, setSuppliedText] = useState(initialImport?.text ?? "");
+  const organized = useMemo(
+    () =>
+      mode === "script" && suppliedText.trim()
+        ? parseImportedScenes(suppliedText)
+        : null,
+    [mode, suppliedText],
+  );
   const [topic, setTopic] = useState(
     initialProject?.title ?? initialImport?.title ?? "",
   );
@@ -198,16 +205,70 @@ export function CreationClient({
                 className="mt-2 w-full rounded-lg border bg-background p-3"
                 rows={8}
                 value={suppliedText}
-                maxLength={mode === "notes" ? 4000 : 12800}
+                maxLength={mode === "notes" ? 4000 : 500000}
                 disabled={started || Boolean(active)}
-                onChange={(event) => setSuppliedText(event.target.value)}
+                onChange={(event) => {
+                  setSuppliedText(event.target.value);
+                  setError("");
+                }}
               />
               <span className="text-xs font-normal text-muted-foreground">
                 {mode === "notes"
                   ? "최대 4,000자. 새 조사는 생략하며 구성안·대본 생성에 API를 사용합니다. 음성은 저장 후 별도로 선택합니다."
-                  : "장면별 줄바꿈으로 2~16개 문단, 문단당 800자 이내. 문구를 다시 생성하지 않습니다. 음성은 저장 후 별도로 진행합니다."}
+                  : "표 대본도 그대로 넣으세요. 시간·대사·장면·자막을 자동으로 나눕니다."}
               </span>
             </label>
+          )}
+          {organized && (
+            <section className="space-y-3" aria-label="자동 정리한 장면">
+              <h2 className="font-semibold">
+                {organized.isTable ? "표에서 정리한 장면" : "장면 미리보기"} ·{" "}
+                {organized.scenes.length}개
+              </h2>
+              {organized.issues.length > 0 ? (
+                <div
+                  role="alert"
+                  className="rounded-xl border border-destructive/40 p-4 text-sm"
+                >
+                  <p className="font-semibold">이 부분만 확인해 주세요</p>
+                  <ul className="mt-2 list-disc pl-5">
+                    {organized.issues.map((issue, i) => (
+                      <li key={i}>{issue}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  아래 내용을 확인하고 저장하세요. AI 재작성 없이 정리했습니다.
+                </p>
+              )}
+              <div className="max-h-96 space-y-3 overflow-y-auto">
+                {organized.scenes.slice(0, 16).map((scene, i) => (
+                  <article
+                    key={i}
+                    className="space-y-2 rounded-xl border bg-muted/30 p-4"
+                  >
+                    <h3 className="text-sm font-semibold">
+                      장면 {i + 1} · {Number(scene.startSeconds.toFixed(2))}–
+                      {Number(scene.endSeconds.toFixed(2))}초
+                    </h3>
+                    <p className="whitespace-pre-wrap text-sm">
+                      {scene.narration}
+                    </p>
+                    {scene.visualDescription && (
+                      <p className="text-sm text-muted-foreground">
+                        화면: {scene.visualDescription}
+                      </p>
+                    )}
+                    {scene.onScreenText && (
+                      <p className="text-sm text-primary">
+                        자막: {scene.onScreenText}
+                      </p>
+                    )}
+                  </article>
+                ))}
+              </div>
+            </section>
           )}
           <label
             htmlFor="creation-topic"
@@ -226,7 +287,10 @@ export function CreationClient({
             className="w-full resize-y rounded-xl border bg-background p-4"
           />
           <p className="text-sm text-muted-foreground">
-            기본 설정: 한국어 · 45초 목표 · 세로 영상 · 게시 전 직접 검토
+            한국어 · 세로 영상 ·{" "}
+            {organized?.isTable && !organized.issues.length
+              ? `${organized.scenes.at(-1)!.endSeconds}초 · 입력한 시간 적용`
+              : "45초 목표"}
           </p>
           <Button
             onClick={start}
@@ -236,7 +300,8 @@ export function CreationClient({
               Boolean(active) ||
               topic.trim().length < 2 ||
               (!projectId && mode !== "topic" && !suppliedText.trim()) ||
-              completed.includes("script")
+              completed.includes("script") ||
+              Boolean(mode === "script" && organized?.issues.length)
             }
             className="w-full"
           >
@@ -245,7 +310,7 @@ export function CreationClient({
               : error
                 ? "저장된 단계부터 다시 시도"
                 : mode === "script"
-                  ? "대본 저장하기"
+                  ? "확인하고 저장"
                   : "제작 준비 시작"}
           </Button>
           {!canWrite && (
@@ -362,7 +427,7 @@ export function CreationClient({
           <p className="text-sm">
             장면 {detail.shots.length}개 ·{" "}
             {mode === "script"
-              ? "입력한 대본을 저장했습니다. 장면 시간은 균등 배분된 초안이므로 검토해 주세요."
+              ? "입력한 대본을 저장했습니다. 다음 화면에서 장면과 시간을 확인해 주세요."
               : "구성안 3개 중 첫 번째를 기본 적용했습니다. 검토 화면에서 바꿀 수 있습니다."}
           </p>
           <Link

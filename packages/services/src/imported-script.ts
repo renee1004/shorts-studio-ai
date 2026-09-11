@@ -1,5 +1,6 @@
 import {
   importedScriptTextSchema,
+  parseImportedScenes,
   structuredScriptSchema,
 } from "@shorts-os/contracts";
 import { DomainError, estimateSpokenSeconds } from "@shorts-os/domain";
@@ -14,21 +15,26 @@ export function structureImportedScript(
   if (!parsed.success)
     throw new DomainError(
       "VALIDATION_FAILED",
-      "대본은 장면별로 줄을 나눠 2~16개 문단으로 입력해 주세요. 문단당 최대 800자입니다.",
+      parsed.error.issues[0]?.message ?? "대본을 확인해 주세요.",
     );
-  const lines = parsed.data.split("\n");
+  const { scenes, isTable } = parseImportedScenes(parsed.data, duration);
+  const lines = scenes.map((scene) => scene.narration);
+  if (isTable) duration = Math.ceil(scenes.at(-1)!.endSeconds);
   return structuredScriptSchema.parse({
     title,
     hook: lines[0]!.slice(0, 500),
     targetDurationSeconds: duration,
     beats: lines.map((narration, index) => ({
       beatId: `b${index + 1}`,
-      startSeconds: (index * duration) / lines.length,
-      endSeconds: ((index + 1) * duration) / lines.length,
+      startSeconds: scenes[index]!.startSeconds,
+      endSeconds: scenes[index]!.endSeconds,
       purpose:
         index === 0 ? "hook" : index === lines.length - 1 ? "cta" : "content",
       narration,
-      onScreenText: "",
+      onScreenText: scenes[index]!.onScreenText,
+      ...(isTable
+        ? { visualDescription: scenes[index]!.visualDescription }
+        : {}),
       claimKeys: [`import-${index + 1}`],
     })),
     cta: { type: "user_supplied", text: lines.at(-1)!.slice(0, 300) },
