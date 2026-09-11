@@ -27,6 +27,8 @@ export function NotebookImportClient({
   );
   const [notebookId, setNotebookId] = useState("");
   const [items, setItems] = useState<Item[]>([]);
+  const [selectedItem, setSelectedItem] = useState<Item | null>(null);
+  const previewPanel = useRef<HTMLElement | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [saved, setSaved] = useState<Saved[]>([]);
   const [savedId, setSavedId] = useState<string | null>(null);
@@ -39,6 +41,13 @@ export function NotebookImportClient({
     reason?: string;
   } | null>(null);
   const running = useRef(false);
+  useEffect(() => {
+    if (preview)
+      previewPanel.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+  }, [preview]);
   async function request<T>(query: string, body?: unknown): Promise<T> {
     const response = await fetch(`${base}${query}`, {
       cache: "no-store",
@@ -123,6 +132,7 @@ export function NotebookImportClient({
               setNotebooks(list);
               setNotebookId("");
               setItems([]);
+              setSelectedItem(null);
               setPreview(null);
               setSavedId(null);
               if (!list.length)
@@ -157,6 +167,7 @@ export function NotebookImportClient({
                 const id = event.target.value;
                 setNotebookId(id);
                 setItems([]);
+                setSelectedItem(null);
                 setPreview(null);
                 setSavedId(null);
                 if (id)
@@ -182,31 +193,69 @@ export function NotebookImportClient({
         {items.length > 0 && (
           <div className="space-y-2">
             <h2 className="font-semibold">노트·대본 선택</h2>
-            {items.map((item) => (
-              <button
-                key={`${item.kind}:${item.id}`}
-                disabled={busy}
-                className="block w-full rounded-lg border p-3 text-left disabled:opacity-50"
-                onClick={() =>
-                  perform(async () => {
+            <p className="text-sm text-muted-foreground">
+              한 항목을 선택한 뒤 ‘선택한 원문 열기’를 눌러 주세요.
+            </p>
+            <div
+              className="max-h-80 space-y-2 overflow-y-auto pr-1"
+              role="group"
+              aria-label="가져올 노트 또는 대본 한 개 선택"
+            >
+              {items.map((item) => (
+                <button
+                  key={`${item.kind}:${item.id}`}
+                  type="button"
+                  disabled={busy}
+                  aria-pressed={
+                    selectedItem?.id === item.id &&
+                    selectedItem.kind === item.kind
+                  }
+                  className={`block w-full rounded-lg border p-3 text-left focus-visible:outline-2 focus-visible:outline-primary ${selectedItem?.id === item.id && selectedItem.kind === item.kind ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-border hover:bg-muted"}`}
+                  onClick={() => {
+                    setSelectedItem(item);
                     setPreview(null);
                     setSavedId(null);
-                    const query = new URLSearchParams({
-                      action: "item",
-                      notebookId,
-                      itemId: item.id,
-                      kind: item.kind,
-                    });
-                    setPreview(await request<Preview>(`?${query}`));
-                  })
-                }
-              >
-                {item.title || "제목 없음"}{" "}
-                <span className="text-sm text-muted-foreground">
-                  · {item.kind === "note" ? "노트" : "보고서"}
-                </span>
-              </button>
-            ))}
+                    setError("");
+                    setMessage("");
+                  }}
+                >
+                  {selectedItem?.id === item.id &&
+                    selectedItem.kind === item.kind && (
+                      <span className="mr-2 font-semibold text-primary">
+                        ✓ 선택됨
+                      </span>
+                    )}
+                  {item.title || "제목 없음"}{" "}
+                  <span className="text-sm text-muted-foreground">
+                    · {item.kind === "note" ? "노트" : "보고서"}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <p className="text-sm" aria-live="polite">
+              {selectedItem
+                ? `선택한 항목: ${selectedItem.title || "제목 없음"}`
+                : "아직 선택한 항목이 없습니다."}
+            </p>
+            <Button
+              disabled={busy || !selectedItem}
+              onClick={() =>
+                perform(async () => {
+                  if (!selectedItem) return;
+                  setPreview(null);
+                  setSavedId(null);
+                  const query = new URLSearchParams({
+                    action: "item",
+                    notebookId,
+                    itemId: selectedItem.id,
+                    kind: selectedItem.kind,
+                  });
+                  setPreview(await request<Preview>(`?${query}`));
+                })
+              }
+            >
+              {busy ? "처리 중…" : "선택한 원문 열기"}
+            </Button>
           </div>
         )}
       </section>
@@ -218,7 +267,10 @@ export function NotebookImportClient({
       )}
       {message && <p role="status">{message}</p>}
       {preview && (
-        <section className="space-y-4 rounded-2xl border p-6">
+        <section
+          ref={previewPanel}
+          className="scroll-mt-6 space-y-4 rounded-2xl border p-6"
+        >
           <h2 className="text-lg font-semibold">
             {preview.title || "제목 없음"}
           </h2>
@@ -295,6 +347,9 @@ export function NotebookImportClient({
             disabled={busy}
             onClick={() =>
               perform(async () => {
+                setSelectedItem(null);
+                setPreview(null);
+                setSavedId(null);
                 const document = await request<Stored>(
                   `?action=saved&id=${item.id}`,
                 );
