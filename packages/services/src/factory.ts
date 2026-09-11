@@ -993,6 +993,27 @@ export async function saveUploadedClip(options: {
     "image/webp": "webp",
   };
   const imageExtension = imageExtensions[options.mimeType];
+  const signature = options.bytes;
+  if (
+    imageExtension &&
+    !(
+      (imageExtension === "png" &&
+        signature
+          .subarray(0, 8)
+          .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) ||
+      (imageExtension === "jpg" &&
+        signature[0] === 255 &&
+        signature[1] === 216 &&
+        signature[2] === 255) ||
+      (imageExtension === "webp" &&
+        signature.toString("ascii", 0, 4) === "RIFF" &&
+        signature.toString("ascii", 8, 12) === "WEBP")
+    )
+  )
+    throw new DomainError(
+      "VALIDATION_FAILED",
+      "이미지 파일이 손상되었거나 표시된 형식과 다릅니다. PNG·JPG·WebP 이미지를 다시 올려 주세요.",
+    );
   const allowed = new Set([
     "video/mp4",
     "video/webm",

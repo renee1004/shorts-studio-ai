@@ -46,10 +46,15 @@ export async function sha256File(filePath: string): Promise<string> {
 export function runCommand(
   command: string,
   args: string[],
-  options: { captureStderr?: boolean } = {},
+  options: { captureStderr?: boolean; timeoutMs?: number } = {},
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    let timedOut = false;
+    const timer = options.timeoutMs ? setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGKILL");
+    }, options.timeoutMs) : null;
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (chunk: Buffer) => {
@@ -57,9 +62,12 @@ export function runCommand(
     });
     child.stderr.on("data", (chunk: Buffer) => {
       stderr += chunk.toString();
+      if (options.timeoutMs) stderr = stderr.slice(-1_000_000);
     });
-    child.on("error", reject);
+    child.on("error", (error) => { if (timer) clearTimeout(timer); reject(error); });
     child.on("close", (code) => {
+      if (timer) clearTimeout(timer);
+      if (timedOut) { reject(new Error("이미지 변환 시간이 초과되었습니다.")); return; }
       if (code === 0) resolve({ stdout, stderr });
       else
         reject(
@@ -97,6 +105,7 @@ export async function writeImageClip(
     throw new Error("이미지 장면 길이가 올바르지 않습니다.");
   await runCommand("ffmpeg", [
     "-y",
+    "-xerror",
     "-protocol_whitelist",
     "file,pipe",
     "-loop",
@@ -117,7 +126,7 @@ export async function writeImageClip(
     "-r",
     "30",
     outputPath,
-  ]);
+  ], { timeoutMs: 60_000 });
 }
 
 export async function probeMedia(filePath: string): Promise<{
