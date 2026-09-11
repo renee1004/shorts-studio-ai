@@ -199,25 +199,35 @@ export function CreationClient({
             </p>
           )}
           {mode !== "topic" && (
-            <label className="block text-sm font-semibold">
-              {mode === "notes" ? "NotebookLM 등에서 정리한 자료" : "완성 대본"}
-              <textarea
-                className="mt-2 w-full rounded-lg border bg-background p-3"
-                rows={8}
-                value={suppliedText}
-                maxLength={mode === "notes" ? 4000 : 500000}
-                disabled={started || Boolean(active)}
-                onChange={(event) => {
-                  setSuppliedText(event.target.value);
-                  setError("");
-                }}
-              />
-              <span className="text-xs font-normal text-muted-foreground">
+            <details
+              open={!organized?.isTable || organized.issues.length > 0}
+              className="rounded-xl border p-4"
+            >
+              <summary className="cursor-pointer text-sm font-semibold">
+                원문 확인·수정
+              </summary>
+              <label className="block text-sm font-semibold">
                 {mode === "notes"
-                  ? "최대 4,000자. 새 조사는 생략하며 구성안·대본 생성에 API를 사용합니다. 음성은 저장 후 별도로 선택합니다."
-                  : "표 대본도 그대로 넣으세요. 시간·대사·장면·자막을 자동으로 나눕니다."}
-              </span>
-            </label>
+                  ? "NotebookLM 등에서 정리한 자료"
+                  : "완성 대본"}
+                <textarea
+                  className="mt-2 w-full rounded-lg border bg-background p-3"
+                  rows={8}
+                  value={suppliedText}
+                  maxLength={mode === "notes" ? 4000 : 500000}
+                  disabled={started || Boolean(active)}
+                  onChange={(event) => {
+                    setSuppliedText(event.target.value);
+                    setError("");
+                  }}
+                />
+                <span className="text-xs font-normal text-muted-foreground">
+                  {mode === "notes"
+                    ? "최대 4,000자. 새 조사는 생략하며 구성안·대본 생성에 API를 사용합니다. 음성은 저장 후 별도로 선택합니다."
+                    : "표 대본도 그대로 넣으세요. 시간·대사·장면·자막을 자동으로 나눕니다."}
+                </span>
+              </label>
+            </details>
           )}
           {organized && (
             <section className="space-y-3" aria-label="자동 정리한 장면">
