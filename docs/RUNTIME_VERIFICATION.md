@@ -1,5 +1,19 @@
 # Runtime verification — 2026-09-10
 
+## Final CI verification — 2026-09-11
+
+Implementation commit: `466b94d4913ea3096dfae9b74aa07b9a93da0c4f`.
+[CI run 34550933596](https://github.com/renee1004/shorts-studio-ai/actions/runs/34550933596): both `verify` and `container` succeeded.
+
+- 151 unit tests across 26 files passed, including real FFmpeg fixture tests.
+- 40 service integration tests across 5 files passed against native PostgreSQL 16 with pgvector. The 6 creation tests include concurrent replay, rollback, RLS, notes and an imported script through explicit QA/approval, cached synthetic audio and successful placeholder rendering with an audio track and output checksum.
+- All package type checks and full web lint passed.
+- Database migrations and seed completed in the isolated CI database.
+- Production web and Worker builds passed. Worker health/auth/malformed-request smoke checks passed.
+- Both production HTTP smoke and Docker Compose HTTP smoke passed, including saved script preservation, notes import, conflicting replay rejection, concurrent replay and reopening an imported script without regenerating research or angles.
+- No paid Gemini API calls were made. Synthetic audio and placeholder visuals are test fixtures, not a finished user video. Real user Supabase login, Gemini output, existing user assets, MP4 download of a user project and public deployment remain unverified.
+- Changes are in draft [PR #3](https://github.com/renee1004/shorts-studio-ai/pull/3) targeting `feat/simple-creation`; the user's running WSL checkout and database were not modified.
+
 ## 2026-09-11 continuation (separate Windows checkout)
 
 - Remote `feat/simple-creation` was verified at `b407b4598c604431ea530eddcbfb566a2b94a6f6`, 12 commits ahead of `main` (`bd737ec5dd3d03b04b1186851390319737270147`).
