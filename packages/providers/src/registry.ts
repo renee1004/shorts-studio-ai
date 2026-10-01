@@ -165,6 +165,7 @@ export class ProviderRegistry {
       return new LiveContentStudioProvider({
         apiKey: this.options.geminiApiKey,
         model: this.options.geminiContentModel,
+        retry: this.options.retry,
       });
     }
     return new MockContentStudioProvider();
