@@ -1,3 +1,4 @@
+import { findNarration, narrationFingerprint } from "./narration";
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -78,6 +79,7 @@ function commandHash(manifest: RenderManifest): string {
           strategy: shot.strategy,
           clipChecksum: shot.clipChecksum,
         })),
+        voiceAssetId: manifest.voiceAssetId,
         retryOf: manifest.retryOf,
       }),
     )
@@ -188,7 +190,15 @@ async function buildManifest(options: {
     captionsInPost: true,
     allowPlaceholder: options.request.allowPlaceholder,
     shots: shotRows,
-    voiceAssetId: null,
+    voiceAssetId:
+      (
+        await findNarration(
+          options.db,
+          options.workspaceId,
+          options.project.id,
+          shots,
+        )
+      )?.id ?? null,
     musicAssetId: null,
     retryOf: null,
   });
@@ -584,11 +594,35 @@ export async function executeRenderJob(
       }
     }
 
+    let voicePath: string | undefined;
+    if (manifest.voiceAssetId) {
+      const voice = await getMediaAsset(
+        system,
+        job.workspaceId,
+        manifest.voiceAssetId,
+      );
+      if (
+        !voice?.storageUri ||
+        voice.contentProjectId !== job.contentProjectId ||
+        voice.assetType !== "voice" ||
+        voice.status !== "succeeded" ||
+        (voice.generationParameters as Record<string, unknown>)
+          .narrationFingerprint !== narrationFingerprint(manifest.shots) ||
+        (await sha256File(voice.storageUri)) !== voice.checksumSha256
+      ) {
+        throw new DomainError(
+          "VALIDATION_FAILED",
+          "대본과 일치하는 음성 파일을 확인할 수 없습니다. 음성을 다시 생성해 주세요.",
+        );
+      }
+      voicePath = voice.storageUri;
+    }
     const composed = await composeRender({
       renderId: job.id,
       workspaceId: job.workspaceId,
       manifest,
       clipPaths,
+      ...(voicePath ? { voicePath } : {}),
     });
 
     const output = await insertMediaAsset(system, {

@@ -71,10 +71,10 @@ describe("env validation", () => {
     expect(() => loadServerEnv({} as NodeJS.ProcessEnv)).toThrow(EnvValidationError);
   });
 
-  it("live 모드는 YouTube 키를 요구한다", () => {
+  it("live 모드는 실제 계정 인증을 요구한다", () => {
     expect(() =>
       loadServerEnv({ ...base, APP_MODE: "live" } as NodeJS.ProcessEnv),
-    ).toThrow(/YOUTUBE_API_KEY/);
+    ).toThrow(/실제 계정/);
   });
 
   it("supabase 인증은 URL과 키를 요구한다", () => {

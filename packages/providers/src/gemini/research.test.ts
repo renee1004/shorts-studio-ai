@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { researchBriefContentSchema } from "@shorts-os/contracts";
-import { buildPrompt, groundingCitations, mergeCitations, parseModelJson } from "./research";
+import { LiveResearchProvider, buildPrompt, groundingCitations, mergeCitations, parseModelJson } from "./research";
 
 const grounded = [
   { url: "https://a.example/1", title: "A", publisher: "a.example", publishedAt: null },
@@ -99,5 +99,67 @@ describe("buildPrompt", () => {
     expect(prompt).toContain("ko");
     expect(prompt).toContain("at most 5");
     expect(prompt).toContain("초보자용");
+  });
+
+  it("무료 초안에서는 검색과 출처 생성을 요구하지 않는다", () => {
+    const prompt = buildPrompt(
+      {
+        workspaceId: "ws",
+        topicTitle: "업무 자동화",
+        nicheName: "Work",
+        angleHint: null,
+        language: "ko",
+        maxSources: 5,
+      },
+      false,
+    );
+
+    expect(prompt).toContain("Do not use web search");
+    expect(prompt).toContain("empty keyFacts and citations arrays");
+  });
+});
+
+
+describe("research request budget", () => {
+  const input = { workspaceId: "ws", topicTitle: "work", nicheName: "Work", angleHint: null, language: "ko", maxSources: 5 };
+  it("allows responses beyond the old 15 second limit", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchImpl = vi.fn<typeof fetch>(async (_url, init) => {
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, 20_000);
+          init?.signal?.addEventListener("abort", () => { clearTimeout(timer); reject(new Error("aborted")); }, { once: true });
+        });
+        return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"executiveSummary":"summary"}' }] } }] }));
+      });
+      const provider = new LiveResearchProvider({ apiKey: "test", modelName: "test", retry: { timeoutMs: 15000, maxAttempts: 3, baseDelayMs: 0 }, fetchImpl });
+      const result = provider.researchTopic(input);
+      await vi.advanceTimersByTimeAsync(20_000);
+      await expect(result).resolves.toBeDefined();
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+    } finally { vi.useRealTimers(); }
+  });
+  it("does not resubmit a timed-out paid request", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async (_url, init) => new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+    }));
+    const provider = new LiveResearchProvider({ apiKey: "test", modelName: "test", timeoutMs: 5, retry: { timeoutMs: 15000, maxAttempts: 3, baseDelayMs: 0 }, fetchImpl });
+    await expect(provider.researchTopic(input)).rejects.toMatchObject({ code: "PROVIDER_TIMEOUT" });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe("incomplete research diagnostics", () => {
+  it.each(["MAX_TOKENS", "SAFETY", "STOP"])("reports %s without repeating a paid request", async (finishReason) => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({
+      candidates: [{ finishReason, content: { parts: [{ thought: true, text: "private reasoning" }] } }],
+      usageMetadata: { totalTokenCount: 100, thoughtsTokenCount: 90 },
+    })));
+    const provider = new LiveResearchProvider({ apiKey: "private-key", modelName: "test-model", retry: { timeoutMs: 15000, maxAttempts: 3, baseDelayMs: 0 }, fetchImpl });
+    await expect(provider.researchTopic({ workspaceId: "ws", topicTitle: "work", nicheName: "Work", angleHint: null, language: "ko", maxSources: 5 })).rejects.toMatchObject({
+      options: { retryable: false, details: { finishReason, totalTokenCount: 100, model: "test-model" } },
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });

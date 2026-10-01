@@ -18,14 +18,23 @@ export type RenderEngineResult = {
 };
 
 export function mediaRoot(): string {
-  return path.resolve(/*turbopackIgnore: true*/ process.env.MEDIA_ROOT ?? ".data/media");
+  return path.resolve(
+    /*turbopackIgnore: true*/ process.env.MEDIA_ROOT ?? ".data/media",
+  );
 }
 
-export function assetFilePath(workspaceId: string, assetId: string, ext = "mp4"): string {
+export function assetFilePath(
+  workspaceId: string,
+  assetId: string,
+  ext = "mp4",
+): string {
   return path.join(mediaRoot(), workspaceId, "assets", `${assetId}.${ext}`);
 }
 
-export function renderOutputPath(workspaceId: string, renderId: string): string {
+export function renderOutputPath(
+  workspaceId: string,
+  renderId: string,
+): string {
   return path.join(mediaRoot(), workspaceId, "renders", renderId, "out.mp4");
 }
 
@@ -52,7 +61,14 @@ export function runCommand(
     child.on("error", reject);
     child.on("close", (code) => {
       if (code === 0) resolve({ stdout, stderr });
-      else reject(new Error(options.captureStderr ? stderr : stderr.split("\n").slice(-30).join("\n")));
+      else
+        reject(
+          new Error(
+            options.captureStderr
+              ? stderr
+              : stderr.split("\n").slice(-30).join("\n"),
+          ),
+        );
     });
   });
 }
@@ -97,7 +113,9 @@ export async function probeMedia(filePath: string): Promise<{
   };
 }
 
-export async function measureLoudness(filePath: string): Promise<number | null> {
+export async function measureLoudness(
+  filePath: string,
+): Promise<number | null> {
   try {
     const { stderr } = await runCommand(
       "ffmpeg",
@@ -154,8 +172,15 @@ export async function composeRender(options: {
   workspaceId: string;
   manifest: RenderManifest;
   clipPaths: string[];
+  voicePath?: string;
 }): Promise<RenderEngineResult> {
-  const workDir = path.join(mediaRoot(), options.workspaceId, "renders", options.renderId, "work");
+  const workDir = path.join(
+    mediaRoot(),
+    options.workspaceId,
+    "renders",
+    options.renderId,
+    "work",
+  );
   await mkdir(workDir, { recursive: true });
   const outputPath = renderOutputPath(options.workspaceId, options.renderId);
   await mkdir(path.dirname(outputPath), { recursive: true });
@@ -164,9 +189,14 @@ export async function composeRender(options: {
   for (const [index, clip] of options.clipPaths.entries()) {
     const shot = options.manifest.shots[index];
     if (!shot) throw new Error(`샷 ${index + 1}이 매니페스트에 없습니다.`);
-    const scaledPath = path.join(workDir, `shot-${String(index).padStart(3, "0")}.mp4`);
+    const scaledPath = path.join(
+      workDir,
+      `shot-${String(index).padStart(3, "0")}.mp4`,
+    );
     await runCommand("ffmpeg", [
       "-y",
+      "-stream_loop",
+      "-1",
       "-i",
       clip,
       "-t",
@@ -215,19 +245,33 @@ export async function composeRender(options: {
   }));
   await writeFile(
     assPath,
-    buildAssCaptions(cues, { width: options.manifest.width, height: options.manifest.height }),
+    buildAssCaptions(cues, {
+      width: options.manifest.width,
+      height: options.manifest.height,
+    }),
     "utf8",
   );
 
-  const assFilter = assPath.replaceAll("\\", "/").replaceAll(":", "\\:").replaceAll("'", "\\'");
+  const assFilter = assPath
+    .replaceAll("\\", "/")
+    .replaceAll(":", "\\:")
+    .replaceAll("'", "\\'");
   await runCommand("ffmpeg", [
     "-y",
     "-i",
     concatPath,
-    "-f",
-    "lavfi",
-    "-i",
-    "anullsrc=channel_layout=stereo:sample_rate=44100",
+    ...(options.voicePath
+      ? ["-i", options.voicePath]
+      : [
+          "-f",
+          "lavfi",
+          "-i",
+          "anullsrc=channel_layout=stereo:sample_rate=44100",
+        ]),
+    "-map",
+    "0:v:0",
+    "-map",
+    "1:a:0",
     "-vf",
     `ass='${assFilter}'`,
     "-c:v",
@@ -258,7 +302,12 @@ export async function composeRender(options: {
     width: probe.width,
     height: probe.height,
     loudnessLufs,
-    probe: { ...probe, engine: "ffmpeg.post.v1", captionsInPost: true },
+    probe: {
+      ...probe,
+      hasNarration: Boolean(options.voicePath),
+      engine: "ffmpeg.post.v1",
+      captionsInPost: true,
+    },
   };
 }
 

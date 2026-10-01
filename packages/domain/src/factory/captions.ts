@@ -83,7 +83,7 @@ ${events}
 }
 
 export function parseEbur128Integrated(stderr: string): number | null {
-  const match = stderr.match(/I:\s*(-?\d+(?:\.\d+)?)\s*LUFS/i);
+  const match = [...stderr.matchAll(/I:\s*(-?\d+(?:\.\d+)?)\s*LUFS/gi)].at(-1);
   if (!match?.[1]) return null;
   const value = Number.parseFloat(match[1]);
   return Number.isFinite(value) ? value : null;

@@ -1,3 +1,4 @@
+import { DomainError } from "@shorts-os/domain";
 import {
   RESEARCH_PROMPT_VERSION,
   dropUngroundedFacts,
@@ -5,7 +6,7 @@ import {
   type Citation,
   type ResearchBriefContent,
 } from "@shorts-os/contracts";
-import { normalizeProviderError, withRetry, withTimeout, type RetryPolicy } from "../errors";
+import { normalizeProviderError, withTimeout, type RetryPolicy } from "../errors";
 import type { ResearchProvider, ResearchTopicInput, ResearchTopicResult } from "../interfaces";
 
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta";
@@ -14,12 +15,16 @@ export type LiveResearchOptions = {
   apiKey: string;
   /** 모델명은 설정값이다. 코드에 고정하지 않는다. */
   modelName: string;
+  /** Google Search quota가 없는 개발 환경에서는 false로 두고 미확인 초안만 만든다. */
+  useSearchGrounding?: boolean;
   retry: RetryPolicy;
+  timeoutMs?: number;
   fetchImpl?: typeof fetch;
 };
 
 type GeminiCandidate = {
-  content?: { parts?: { text?: string }[] };
+  finishReason?: string;
+  content?: { parts?: { text?: string; thought?: boolean }[] };
   groundingMetadata?: {
     groundingChunks?: { web?: { uri?: string; title?: string; domain?: string } }[];
   };
@@ -27,6 +32,7 @@ type GeminiCandidate = {
 
 type GeminiResponse = {
   candidates?: GeminiCandidate[];
+  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number; totalTokenCount?: number };
   promptFeedback?: { blockReason?: string };
   error?: { message?: string; status?: string };
 };
@@ -48,14 +54,14 @@ export class LiveResearchProvider implements ResearchProvider {
     const url = new URL(`${API_BASE}/models/${this.options.modelName}:generateContent`);
     url.searchParams.set("key", this.options.apiKey);
 
+    const useSearchGrounding = this.options.useSearchGrounding ?? true;
     const payload = {
-      contents: [{ role: "user", parts: [{ text: buildPrompt(input) }] }],
-      tools: [{ google_search: {} }],
+      contents: [{ role: "user", parts: [{ text: buildPrompt(input, useSearchGrounding) }] }],
+      ...(useSearchGrounding ? { tools: [{ google_search: {} }] } : {}),
       generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
     };
 
-    const body = await withRetry(this.options.retry, async () =>
-      withTimeout(this.options.retry.timeoutMs, "gemini", async (signal) => {
+    const body = await withTimeout(this.options.timeoutMs ?? 120_000, "gemini", async (signal) => {
         const response = await fetchImpl(url, {
           method: "POST",
           signal,
@@ -76,45 +82,73 @@ export class LiveResearchProvider implements ResearchProvider {
         }
 
         return (await response.json()) as GeminiResponse;
-      }),
-    );
-
-    if (body.promptFeedback?.blockReason) {
-      throw normalizeProviderError({
-        provider: "gemini",
-        code: body.promptFeedback.blockReason,
-        message: `Gemini가 요청을 거절했습니다: ${body.promptFeedback.blockReason}`,
       });
-    }
 
     const candidate = body.candidates?.[0];
-    const text = candidate?.content?.parts?.map((part) => part.text ?? "").join("") ?? "";
-    if (text.trim().length === 0) {
-      throw normalizeProviderError({
-        provider: "gemini",
-        code: "EMPTY_RESPONSE",
-        message: "Gemini가 빈 응답을 반환했습니다.",
+    const text = candidate?.content?.parts
+      ?.filter((part) => !part.thought)
+      .map((part) => part.text ?? "").join("") ?? "";
+    const reason = body.promptFeedback?.blockReason ?? candidate?.finishReason;
+    // Never log generated text, prompts, credentials, or free-form provider messages.
+    const safeReason = typeof reason === "string" && /^[A-Z_]{1,64}$/.test(reason)
+      ? reason : "UNKNOWN";
+    if (body.promptFeedback?.blockReason || (reason && reason !== "STOP") || !text.trim()) {
+      const tokenCounts: Record<string, number> = {};
+      for (const key of ["promptTokenCount", "candidatesTokenCount", "thoughtsTokenCount", "totalTokenCount"] as const) {
+        const count = body.usageMetadata?.[key];
+        if (typeof count === "number" && Number.isFinite(count) && count >= 0) tokenCounts[key] = count;
+      }
+      const message = safeReason === "MAX_TOKENS"
+        ? "Gemini 조사 응답이 출력 한도에 도달해 완성되지 않았습니다."
+        : `Gemini가 완성된 조사 결과를 반환하지 않았습니다 (종료 사유: ${safeReason}).`;
+      throw new DomainError("PROVIDER_UNAVAILABLE", message, {
+        retryable: false,
+        details: {
+          provider: "gemini", providerCode: "INCOMPLETE_RESPONSE",
+          model: this.options.modelName, finishReason: safeReason,
+          candidateCount: body.candidates?.length ?? 0,
+          searchGrounding: useSearchGrounding, ...tokenCounts,
+        },
       });
     }
 
     const grounded = groundingCitations(candidate);
-    const content = mergeCitations(parseModelJson(text), grounded);
+    const parsed = parseModelJson(text);
+    const content = useSearchGrounding
+      ? mergeCitations(parsed, grounded)
+      : {
+          ...parsed,
+          citations: [],
+          keyFacts: [],
+          unknowns: [
+            ...new Set([
+              ...parsed.unknowns,
+              "Google 검색을 사용하지 않은 무료 초안입니다. 게시 전에 사실과 최신 정보를 직접 확인하세요.",
+            ]),
+          ],
+        };
 
     return {
       // 근거를 붙이지 못한 주장은 저장하지 않는다.
       content: dropUngroundedFacts(content),
       modelName: this.options.modelName,
-      promptVersion: RESEARCH_PROMPT_VERSION,
+      promptVersion: useSearchGrounding
+        ? RESEARCH_PROMPT_VERSION
+        : `${RESEARCH_PROMPT_VERSION}.ungrounded`,
       mode: "live",
     };
   }
 }
 
-export function buildPrompt(input: ResearchTopicInput): string {
+export function buildPrompt(input: ResearchTopicInput, useSearchGrounding = true): string {
   return [
     "You are a research analyst preparing a short-form video brief.",
-    "Use Google Search grounding. Every factual claim must come from a source you actually retrieved.",
-    "If you cannot ground a claim, omit it and list it under unknowns instead.",
+    useSearchGrounding
+      ? "Use Google Search grounding. Every factual claim must come from a source you actually retrieved."
+      : "Do not use web search. Create a clearly unverified planning draft from general knowledge only.",
+    useSearchGrounding
+      ? "If you cannot ground a claim, omit it and list it under unknowns instead."
+      : "Return empty keyFacts and citations arrays. Put every fact that needs verification under unknowns.",
     "Never invent statistics, revenue figures, CPC values, or URLs.",
     "",
     `Topic: ${input.topicTitle}`,

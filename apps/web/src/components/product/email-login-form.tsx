@@ -25,7 +25,7 @@ export function EmailLoginForm() {
       const payload = await response.json();
       if (!response.ok)
         throw new Error(payload.error?.message ?? "로그인에 실패했습니다.");
-      router.push("/dashboard");
+      router.push("/create");
       router.refresh();
     } catch (cause) {
       setError(

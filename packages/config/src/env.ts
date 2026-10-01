@@ -31,11 +31,19 @@ const serverEnvSchema = z.object({
   YOUTUBE_SEARCH_DAILY_LIMIT: z.coerce.number().int().positive().default(100),
   YOUTUBE_UNITS_DAILY_LIMIT: z.coerce.number().int().positive().default(10000),
   YOUTUBE_CACHE_TTL_MINUTES: z.coerce.number().int().positive().default(360),
+  GEMINI_RESEARCH_TIMEOUT_MS: z.coerce.number().int().min(1000).max(600000).default(120000),
   PROVIDER_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
   PROVIDER_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),
 
   GEMINI_API_KEY: z.string().min(1).optional(),
   GEMINI_RESEARCH_MODEL: z.string().min(1).optional(),
+  GEMINI_SEARCH_GROUNDING: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
+  GEMINI_TTS_MODEL: z.string().min(1).optional(),
+  GEMINI_TTS_VOICE: z.string().min(1).default("Kore"),
+  GEMINI_CONTENT_MODEL: z.string().min(1).optional(),
 
   FEATURE_FLAGS_OVERRIDE: z.string().optional(),
 
@@ -116,11 +124,8 @@ export function loadServerEnv(
     if (!env.SUPABASE_ANON_KEY)
       issues.push("AUTH_PROVIDER=supabase에는 SUPABASE_ANON_KEY가 필요합니다.");
   }
-  if (env.APP_MODE === "live" && !env.YOUTUBE_API_KEY) {
-    issues.push(
-      "APP_MODE=live에는 YOUTUBE_API_KEY가 필요합니다. demo 모드로 두면 키 없이 실행됩니다.",
-    );
-  }
+  // Provider credentials are checked when that provider is requested.
+  // Gemini-only creation must not require a YouTube discovery key.
   if (
     env.NODE_ENV === "production" &&
     (env.AUTH_SESSION_SECRET.length < 32 ||

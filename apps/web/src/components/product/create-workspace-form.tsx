@@ -42,7 +42,7 @@ export function CreateWorkspaceForm() {
       const payload = (await response.json()) as { error?: { message: string } };
       if (!response.ok) throw new Error(payload.error?.message ?? "생성에 실패했습니다.");
       toast.success("워크스페이스를 만들었습니다");
-      router.push("/dashboard");
+      router.push("/create");
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "생성에 실패했습니다.");

@@ -48,3 +48,8 @@ describe("후반 자막", () => {
     expect(parseEbur128Integrated("no loudness here")).toBeNull();
   });
 });
+
+
+it("uses the final integrated loudness instead of startup silence", () => {
+  expect(parseEbur128Integrated("I: -70.0 LUFS\nI: -18.4 LUFS\nSummary:\n I: -18.4 LUFS")).toBe(-18.4);
+});

@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { CURRENT_PHASE, isNavItemActive, navItems } from "@/components/product/nav-items";
+import {
+  CURRENT_PHASE,
+  isNavItemActive,
+  primaryNavItems,
+  advancedNavItems,
+} from "@/components/product/nav-items";
 import { SignOutButton } from "@/components/product/sign-out-button";
 
 export function ProductSidebar({
@@ -18,12 +23,16 @@ export function ProductSidebar({
   userEmail: string;
 }) {
   const pathname = usePathname();
-  const active = workspaces.find((workspace) => workspace.id === activeWorkspaceId);
+  const active = workspaces.find(
+    (workspace) => workspace.id === activeWorkspaceId,
+  );
 
   return (
     <aside className="hidden w-60 shrink-0 flex-col border-r border-border/70 bg-sidebar lg:flex">
       <div className="border-b border-border/70 px-4 py-4">
-        <p className="font-mono text-[10px] tracking-widest text-muted-foreground">WORKSPACE</p>
+        <p className="font-mono text-[10px] tracking-widest text-muted-foreground">
+          WORKSPACE
+        </p>
         <p className="mt-1 truncate text-sm font-bold">{active?.name ?? "-"}</p>
         <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">
           {appMode === "demo" ? "DEMO MODE · 외부 키 없음" : "LIVE"}
@@ -32,7 +41,7 @@ export function ProductSidebar({
 
       <nav className="flex-1 overflow-y-auto p-2">
         <ul className="space-y-0.5">
-          {navItems.map((item) => {
+          {primaryNavItems.map((item) => {
             const locked = item.phase > CURRENT_PHASE;
             const isActive = isNavItemActive(pathname, item.href);
 
@@ -68,10 +77,41 @@ export function ProductSidebar({
             );
           })}
         </ul>
+        <details
+          className="mt-5"
+          open={
+            advancedNavItems.some((item) =>
+              isNavItemActive(pathname, item.href),
+            ) || undefined
+          }
+        >
+          <summary className="cursor-pointer px-3 py-2 text-sm text-muted-foreground">
+            세부 작업 도구
+          </summary>
+          <ul>
+            {advancedNavItems
+              .filter((item) => item.phase <= CURRENT_PHASE)
+              .map((item) => (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    className="block rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-secondary"
+                    aria-current={
+                      isNavItemActive(pathname, item.href) ? "page" : undefined
+                    }
+                  >
+                    {item.label}
+                  </Link>
+                </li>
+              ))}
+          </ul>
+        </details>
       </nav>
 
       <div className="border-t border-border/70 px-4 py-3">
-        <p className="truncate text-[11px] text-muted-foreground">{userEmail}</p>
+        <p className="truncate text-[11px] text-muted-foreground">
+          {userEmail}
+        </p>
         <SignOutButton className="mt-1.5 block" />
       </div>
     </aside>

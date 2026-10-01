@@ -31,6 +31,7 @@ assert.equal(login.status, 200);
 const cookie = login.headers.get("set-cookie")?.split(";")[0];
 assert.ok(cookie, "Login must issue an HttpOnly session cookie");
 for (const route of [
+  "/create",
   "/dashboard",
   "/radar/niches",
   "/radar/topics",
@@ -54,6 +55,62 @@ for (const route of [
   );
   console.log(`OK ${route}`);
 }
+// Exercise the actual HTTP + PostgreSQL creation flow, including retries.
+const workspacesResponse = await fetch(`${base}/api/v1/workspaces`, {
+  headers: { cookie },
+});
+const workspaceId = (await workspacesResponse.json()).data.workspaces[0].id;
+const creationBase = `${base}/api/v1/workspaces/${workspaceId}`;
+async function command(path, body, expected = 200) {
+  const response = await fetch(`${creationBase}/${path}`, {
+    method: "POST",
+    headers: { cookie, "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json();
+  assert.equal(
+    response.status,
+    expected,
+    `${path}: ${JSON.stringify(payload.error)}`,
+  );
+  return payload.data;
+}
+const creationInput = {
+  topic: "퇴근 후 책상 정리",
+  operationId: crypto.randomUUID(),
+};
+const created = await command("creation", creationInput, 201);
+const again = await command("creation", creationInput, 201);
+assert.equal(again.project.id, created.project.id, "Retry must reuse project");
+await command("creation", { ...creationInput, topic: "다른 주제" }, 409);
+const preparePath = `projects/${created.project.id}/prepare`;
+await command(preparePath, { stage: "script" }, 409);
+let prepared;
+for (const stage of ["research", "angles", "script"])
+  prepared = await command(preparePath, { stage });
+assert.ok(prepared.latestScript?.id, "Must persist a script");
+assert.ok(prepared.shots.length > 0, "Must persist shot list");
+assert.equal(prepared.angles.length, 3);
+assert.equal(
+  prepared.approvals.length,
+  0,
+  "Preparation must not approve or publish",
+);
+const resumed = await command(preparePath, { stage: "script" });
+assert.equal(
+  resumed.latestScript.id,
+  prepared.latestScript.id,
+  "Resume must not generate twice",
+);
+const resumePage = await fetch(`${base}/create?project=${created.project.id}`, {
+  headers: { cookie },
+});
+assert.equal(resumePage.status, 200);
+assert.ok(
+  !(await resumePage.text()).includes('"digest":"'),
+  "Resume page must render",
+);
+console.log("OK one-topic preparation, persisted stages and safe retry");
 const spoof = await fetch(`${base}/api/v1/auth/demo-session`, {
   method: "POST",
   headers: { "content-type": "application/json" },

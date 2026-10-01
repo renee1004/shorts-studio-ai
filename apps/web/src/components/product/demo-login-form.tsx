@@ -26,7 +26,7 @@ export function DemoLoginForm() {
       const payload = (await response.json()) as { error?: { message: string } };
       if (!response.ok) throw new Error(payload.error?.message ?? "로그인에 실패했습니다.");
       toast.success("Demo 세션으로 들어갑니다");
-      router.push("/dashboard");
+      router.push("/create");
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "로그인에 실패했습니다.");

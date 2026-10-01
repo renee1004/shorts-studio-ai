@@ -41,27 +41,34 @@ export function StudioListClient({
     setBusy(true);
     try {
       const selected = eligible.find((row) => row.id === topicId);
-      const response = await fetch(`/api/v1/workspaces/${workspaceId}/projects`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          topicId,
-          ...(selected?.briefId ? { researchBriefId: selected.briefId } : {}),
-          targetLanguage: "ko",
-          targetDurationSeconds: 45,
-        }),
-      });
+      const response = await fetch(
+        `/api/v1/workspaces/${workspaceId}/projects`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            topicId,
+            ...(selected?.briefId ? { researchBriefId: selected.briefId } : {}),
+            targetLanguage: "ko",
+            targetDurationSeconds: 45,
+          }),
+        },
+      );
       const payload = (await response.json()) as {
         data?: { project: { id: string } };
         error?: { message: string };
       };
       if (!response.ok || !payload.data) {
-        throw new Error(payload.error?.message ?? "프로젝트를 만들지 못했습니다.");
+        throw new Error(
+          payload.error?.message ?? "프로젝트를 만들지 못했습니다.",
+        );
       }
       toast.success("Content Studio 프로젝트를 만들었습니다");
       startTransition(() => router.push(`/studio/${payload.data!.project.id}`));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "프로젝트 생성 실패");
+      toast.error(
+        error instanceof Error ? error.message : "프로젝트 생성 실패",
+      );
     } finally {
       setBusy(false);
     }
@@ -72,7 +79,8 @@ export function StudioListClient({
       <section className="rounded-2xl border border-border/70 bg-card p-5">
         <h2 className="text-sm font-bold">승인된 주제로 시작</h2>
         <p className="mt-1 text-[12px] text-muted-foreground">
-          Topic Radar에서 주제를 승인한 뒤 Research Brief를 만들면 여기 목록에 나타납니다.
+          Topic Radar에서 주제를 승인한 뒤 Research Brief를 만들면 여기 목록에
+          나타납니다.
         </p>
         {eligible.length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">
@@ -99,7 +107,10 @@ export function StudioListClient({
                 ))}
               </select>
             </label>
-            <Button disabled={!canWrite || busy || pending} onClick={createProject}>
+            <Button
+              disabled={!canWrite || busy || pending}
+              onClick={createProject}
+            >
               {busy ? "만드는 중" : "프로젝트 만들기"}
             </Button>
           </div>
@@ -126,8 +137,18 @@ export function StudioListClient({
                       {project.status} · {project.targetDurationSeconds}s
                     </p>
                   </div>
-                  <span className="text-[12px] text-muted-foreground">열기</span>
+                  <span className="text-[12px] text-muted-foreground">
+                    열기
+                  </span>
                 </Link>
+                {["draft", "research_ready"].includes(project.status) && (
+                  <Link
+                    href={`/create?project=${project.id}`}
+                    className="mt-1 inline-block px-4 py-2 text-sm underline"
+                  >
+                    자동 제작 이어서 진행
+                  </Link>
+                )}
               </li>
             ))}
           </ul>

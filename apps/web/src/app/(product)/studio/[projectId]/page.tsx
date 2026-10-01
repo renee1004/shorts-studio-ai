@@ -1,5 +1,11 @@
 import { roleHasPermission } from "@shorts-os/contracts";
-import { loadStudioProject } from "@shorts-os/services";
+import { NarrationClient } from "@/components/product/narration-client";
+import { env } from "@/server/env";
+import {
+  findNarration,
+  narrationFingerprint,
+  loadStudioProject,
+} from "@shorts-os/services";
 import { workspaceContext } from "@/server/context";
 import { requireProductWorkspace } from "@/server/page-context";
 import { StudioProjectClient } from "@/components/product/studio-project-client";
@@ -15,8 +21,14 @@ export default async function StudioProjectPage({
   const { projectId } = await params;
   const workspace = await requireProductWorkspace();
   const context = await workspaceContext(workspace.id);
-  const detail = await context.run(({ db }) => loadStudioProject(db, workspace.id, projectId));
+  const detail = await context.run(({ db }) =>
+    loadStudioProject(db, workspace.id, projectId),
+  );
 
+  const voice = await context.run(({ db }) =>
+    findNarration(db, workspace.id, projectId, detail.shots),
+  );
+  const config = env();
   const latestQa = new Map<string, (typeof detail.qa)[number]>();
   for (const row of detail.qa) {
     if (!latestQa.has(row.checkType)) latestQa.set(row.checkType, row);
@@ -25,10 +37,25 @@ export default async function StudioProjectPage({
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6">
       <header>
-        <p className="font-mono text-[11px] tracking-widest text-muted-foreground">CONTENT STUDIO</p>
+        <p className="font-mono text-[11px] tracking-widest text-muted-foreground">
+          CONTENT STUDIO
+        </p>
         <h1 className="text-2xl font-black">{detail.project.title}</h1>
-        <p className="mt-1.5 font-mono text-[12px] text-muted-foreground">{detail.project.status}</p>
+        <p className="mt-1.5 font-mono text-[12px] text-muted-foreground">
+          {detail.project.status}
+        </p>
       </header>
+      <NarrationClient
+        key={narrationFingerprint(detail.shots)}
+        workspaceId={workspace.id}
+        projectId={projectId}
+        enabled={
+          config.APP_MODE === "live" &&
+          Boolean(config.GEMINI_API_KEY && config.GEMINI_TTS_MODEL)
+        }
+        canWrite={roleHasPermission(workspace.role, "topic:write")}
+        initialAssetId={voice?.id ?? null}
+      />
       <StudioProjectClient
         workspaceId={workspace.id}
         projectId={detail.project.id}
@@ -48,7 +75,8 @@ export default async function StudioProjectPage({
           hook: angle.hook,
           promise: angle.promise,
           selected: angle.selected,
-          scoreBreakdown: (angle.scoreBreakdown as Record<string, unknown>) ?? {},
+          scoreBreakdown:
+            (angle.scoreBreakdown as Record<string, unknown>) ?? {},
         }))}
         scripts={detail.scripts.map((script) => ({
           id: script.id,
