@@ -38,24 +38,29 @@ export default async function StudioProjectPage({
     <div className="mx-auto w-full max-w-5xl space-y-6">
       <header>
         <p className="font-mono text-[11px] tracking-widest text-muted-foreground">
-          CONTENT STUDIO
+          대본과 장면 준비
         </p>
         <h1 className="text-2xl font-black">{detail.project.title}</h1>
         <p className="mt-1.5 font-mono text-[12px] text-muted-foreground">
-          {detail.project.status}
+          대본과 장면을 확인해 주세요.
         </p>
       </header>
-      <NarrationClient
-        key={narrationFingerprint(detail.shots)}
-        workspaceId={workspace.id}
-        projectId={projectId}
-        enabled={
-          config.APP_MODE === "live" &&
-          Boolean(config.GEMINI_API_KEY && config.GEMINI_TTS_MODEL)
-        }
-        canWrite={roleHasPermission(workspace.role, "topic:write")}
-        initialAssetId={voice?.id ?? null}
-      />
+      <details className="rounded-xl border p-4">
+        <summary className="cursor-pointer text-sm font-semibold">
+          음성 추가하기 (선택)
+        </summary>
+        <NarrationClient
+          key={narrationFingerprint(detail.shots)}
+          workspaceId={workspace.id}
+          projectId={projectId}
+          enabled={
+            config.APP_MODE === "live" &&
+            Boolean(config.GEMINI_API_KEY && config.GEMINI_TTS_MODEL)
+          }
+          canWrite={roleHasPermission(workspace.role, "topic:write")}
+          initialAssetId={voice?.id ?? null}
+        />
+      </details>
       <StudioProjectClient
         workspaceId={workspace.id}
         projectId={detail.project.id}

@@ -6,8 +6,16 @@ import {
   type Citation,
   type ResearchBriefContent,
 } from "@shorts-os/contracts";
-import { normalizeProviderError, withTimeout, type RetryPolicy } from "../errors";
-import type { ResearchProvider, ResearchTopicInput, ResearchTopicResult } from "../interfaces";
+import {
+  normalizeProviderError,
+  withTimeout,
+  type RetryPolicy,
+} from "../errors";
+import type {
+  ResearchProvider,
+  ResearchTopicInput,
+  ResearchTopicResult,
+} from "../interfaces";
 
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
@@ -26,13 +34,20 @@ type GeminiCandidate = {
   finishReason?: string;
   content?: { parts?: { text?: string; thought?: boolean }[] };
   groundingMetadata?: {
-    groundingChunks?: { web?: { uri?: string; title?: string; domain?: string } }[];
+    groundingChunks?: {
+      web?: { uri?: string; title?: string; domain?: string };
+    }[];
   };
 };
 
 type GeminiResponse = {
   candidates?: GeminiCandidate[];
-  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number; totalTokenCount?: number };
+  usageMetadata?: {
+    promptTokenCount?: number;
+    candidatesTokenCount?: number;
+    thoughtsTokenCount?: number;
+    totalTokenCount?: number;
+  };
   promptFeedback?: { blockReason?: string };
   error?: { message?: string; status?: string };
 };
@@ -51,63 +66,104 @@ export class LiveResearchProvider implements ResearchProvider {
 
   async researchTopic(input: ResearchTopicInput): Promise<ResearchTopicResult> {
     const fetchImpl = this.options.fetchImpl ?? fetch;
-    const url = new URL(`${API_BASE}/models/${this.options.modelName}:generateContent`);
-    url.searchParams.set("key", this.options.apiKey);
+    const url = new URL(
+      `${API_BASE}/models/${this.options.modelName}:generateContent`,
+    );
 
     const useSearchGrounding = this.options.useSearchGrounding ?? true;
     const payload = {
-      contents: [{ role: "user", parts: [{ text: buildPrompt(input, useSearchGrounding) }] }],
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: buildPrompt(input, useSearchGrounding) }],
+        },
+      ],
       ...(useSearchGrounding ? { tools: [{ google_search: {} }] } : {}),
-      generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
+      generationConfig: {
+        temperature: 0.2,
+        responseMimeType: "application/json",
+      },
     };
 
-    const body = await withTimeout(this.options.timeoutMs ?? 120_000, "gemini", async (signal) => {
+    const body = await withTimeout(
+      this.options.timeoutMs ?? 120_000,
+      "gemini",
+      async (signal) => {
         const response = await fetchImpl(url, {
           method: "POST",
           signal,
-          headers: { "content-type": "application/json", accept: "application/json" },
+          headers: {
+            "content-type": "application/json",
+            accept: "application/json",
+            "x-goog-api-key": this.options.apiKey,
+          },
           body: JSON.stringify(payload),
         });
 
         if (!response.ok) {
-          const error = (await response.json().catch(() => ({}))) as GeminiResponse;
+          const error = (await response
+            .json()
+            .catch(() => ({}))) as GeminiResponse;
           const retryAfter = Number(response.headers.get("retry-after") ?? "");
           throw normalizeProviderError({
             provider: "gemini",
             status: response.status,
             ...(error.error?.status ? { code: error.error.status } : {}),
             ...(error.error?.message ? { message: error.error.message } : {}),
-            ...(Number.isFinite(retryAfter) ? { retryAfterSeconds: retryAfter } : {}),
+            ...(Number.isFinite(retryAfter)
+              ? { retryAfterSeconds: retryAfter }
+              : {}),
           });
         }
 
         return (await response.json()) as GeminiResponse;
-      });
+      },
+    );
 
     const candidate = body.candidates?.[0];
-    const text = candidate?.content?.parts
-      ?.filter((part) => !part.thought)
-      .map((part) => part.text ?? "").join("") ?? "";
+    const text =
+      candidate?.content?.parts
+        ?.filter((part) => !part.thought)
+        .map((part) => part.text ?? "")
+        .join("") ?? "";
     const reason = body.promptFeedback?.blockReason ?? candidate?.finishReason;
     // Never log generated text, prompts, credentials, or free-form provider messages.
-    const safeReason = typeof reason === "string" && /^[A-Z_]{1,64}$/.test(reason)
-      ? reason : "UNKNOWN";
-    if (body.promptFeedback?.blockReason || (reason && reason !== "STOP") || !text.trim()) {
+    const safeReason =
+      typeof reason === "string" && /^[A-Z_]{1,64}$/.test(reason)
+        ? reason
+        : "UNKNOWN";
+    if (
+      body.promptFeedback?.blockReason ||
+      (reason && reason !== "STOP") ||
+      !text.trim()
+    ) {
       const tokenCounts: Record<string, number> = {};
-      for (const key of ["promptTokenCount", "candidatesTokenCount", "thoughtsTokenCount", "totalTokenCount"] as const) {
+      for (const key of [
+        "promptTokenCount",
+        "candidatesTokenCount",
+        "thoughtsTokenCount",
+        "totalTokenCount",
+      ] as const) {
         const count = body.usageMetadata?.[key];
-        if (typeof count === "number" && Number.isFinite(count) && count >= 0) tokenCounts[key] = count;
+        if (typeof count === "number" && Number.isFinite(count) && count >= 0)
+          tokenCounts[key] = count;
       }
-      const message = safeReason === "MAX_TOKENS"
-        ? "Gemini 조사 응답이 출력 한도에 도달해 완성되지 않았습니다."
-        : `Gemini가 완성된 조사 결과를 반환하지 않았습니다 (종료 사유: ${safeReason}).`;
+      const message =
+        safeReason === "MAX_TOKENS"
+          ? "Gemini 조사 응답이 출력 한도에 도달해 완성되지 않았습니다."
+          : safeReason === "UNKNOWN"
+            ? `Gemini 조사 응답에 ${body.candidates?.length ? "읽을 수 있는 본문" : "결과 후보"}가 없습니다. 종료 정보도 없어 원인을 확정할 수 없습니다. NotebookLM 원문 가져오기로 조사를 건너뛸 수 있습니다.`
+            : `Gemini가 완성된 조사 결과를 반환하지 않았습니다 (종료 사유: ${safeReason}).`;
       throw new DomainError("PROVIDER_UNAVAILABLE", message, {
         retryable: false,
         details: {
-          provider: "gemini", providerCode: "INCOMPLETE_RESPONSE",
-          model: this.options.modelName, finishReason: safeReason,
+          provider: "gemini",
+          providerCode: "INCOMPLETE_RESPONSE",
+          model: this.options.modelName,
+          finishReason: safeReason,
           candidateCount: body.candidates?.length ?? 0,
-          searchGrounding: useSearchGrounding, ...tokenCounts,
+          searchGrounding: useSearchGrounding,
+          ...tokenCounts,
         },
       });
     }
@@ -140,7 +196,10 @@ export class LiveResearchProvider implements ResearchProvider {
   }
 }
 
-export function buildPrompt(input: ResearchTopicInput, useSearchGrounding = true): string {
+export function buildPrompt(
+  input: ResearchTopicInput,
+  useSearchGrounding = true,
+): string {
   return [
     "You are a research analyst preparing a short-form video brief.",
     useSearchGrounding
@@ -166,7 +225,14 @@ export function buildPrompt(input: ResearchTopicInput, useSearchGrounding = true
         angles: [{ title: "string", hook: "string", why: "string" }],
         counterpoints: ["string"],
         unknowns: ["string"],
-        citations: [{ url: "string", title: "string", publisher: "string|null", publishedAt: null }],
+        citations: [
+          {
+            url: "string",
+            title: "string",
+            publisher: "string|null",
+            publishedAt: null,
+          },
+        ],
       },
       null,
       2,
@@ -208,7 +274,9 @@ export function parseModelJson(text: string): ResearchBriefContent {
 }
 
 /** groundingMetadata에 실제로 들어온 URL만 인용으로 인정한다. */
-export function groundingCitations(candidate: GeminiCandidate | undefined): Citation[] {
+export function groundingCitations(
+  candidate: GeminiCandidate | undefined,
+): Citation[] {
   const chunks = candidate?.groundingMetadata?.groundingChunks ?? [];
   const seen = new Set<string>();
   const citations: Citation[] = [];
@@ -240,7 +308,9 @@ export function mergeCitations(
     return { ...content, citations: [], keyFacts: [] };
   }
 
-  const indexByUrl = new Map(grounded.map((citation, index) => [citation.url, index]));
+  const indexByUrl = new Map(
+    grounded.map((citation, index) => [citation.url, index]),
+  );
 
   const keyFacts = content.keyFacts
     .map((fact) => {
@@ -250,7 +320,10 @@ export function mergeCitations(
         .map((url) => indexByUrl.get(url))
         .filter((index): index is number => index !== undefined);
 
-      return { statement: fact.statement, citationIndexes: [...new Set(remapped)] };
+      return {
+        statement: fact.statement,
+        citationIndexes: [...new Set(remapped)],
+      };
     })
     .filter((fact) => fact.citationIndexes.length > 0);
 

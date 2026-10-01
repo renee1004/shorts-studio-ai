@@ -7,7 +7,11 @@ import { ProductSidebar } from "@/components/product/sidebar";
 import { ProductMobileNav } from "@/components/product/mobile-nav";
 import { SignOutButton } from "@/components/product/sign-out-button";
 
-export default async function ProductLayout({ children }: { children: React.ReactNode }) {
+export default async function ProductLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const user = await currentUser();
   if (!user) redirect("/login");
 
@@ -33,7 +37,7 @@ export default async function ProductLayout({ children }: { children: React.Reac
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">{active.name}</p>
             <p className="font-mono text-[11px] text-muted-foreground">
-              {active.role} · {active.timezone} · {env().APP_MODE === "demo" ? "Demo Mode" : "Live"}
+              {env().APP_MODE === "demo" ? "체험 모드" : "나의 쇼츠 작업 공간"}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-4">
@@ -41,7 +45,7 @@ export default async function ProductLayout({ children }: { children: React.Reac
               href="/playbook"
               className="text-xs text-muted-foreground underline decoration-border underline-offset-4 hover:text-foreground"
             >
-              Playbook
+              이용 안내
             </Link>
             <SignOutButton className="lg:hidden" />
           </div>

@@ -42,3 +42,7 @@ yarn-error.log*
 
 # 로컬 데이터베이스
 pgdata/
+**/storage_state.json
+**/master_token.json
+.venv*/
+__pycache__/

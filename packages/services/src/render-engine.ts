@@ -46,10 +46,15 @@ export async function sha256File(filePath: string): Promise<string> {
 export function runCommand(
   command: string,
   args: string[],
-  options: { captureStderr?: boolean } = {},
+  options: { captureStderr?: boolean; timeoutMs?: number } = {},
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    let timedOut = false;
+    const timer = options.timeoutMs ? setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGKILL");
+    }, options.timeoutMs) : null;
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (chunk: Buffer) => {
@@ -57,9 +62,12 @@ export function runCommand(
     });
     child.stderr.on("data", (chunk: Buffer) => {
       stderr += chunk.toString();
+      if (options.timeoutMs) stderr = stderr.slice(-1_000_000);
     });
-    child.on("error", reject);
+    child.on("error", (error) => { if (timer) clearTimeout(timer); reject(error); });
     child.on("close", (code) => {
+      if (timer) clearTimeout(timer);
+      if (timedOut) { reject(new Error("이미지 변환 시간이 초과되었습니다.")); return; }
       if (code === 0) resolve({ stdout, stderr });
       else
         reject(
@@ -81,6 +89,44 @@ export async function ffmpegAvailable(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** Decode one still image and make a silent clip matching its approved scene. */
+export async function writeImageClip(
+  inputPath: string,
+  outputPath: string,
+  durationSeconds: number,
+) {
+  if (
+    !Number.isFinite(durationSeconds) ||
+    durationSeconds <= 0 ||
+    durationSeconds > 180
+  )
+    throw new Error("이미지 장면 길이가 올바르지 않습니다.");
+  await runCommand("ffmpeg", [
+    "-y",
+    "-xerror",
+    "-protocol_whitelist",
+    "file,pipe",
+    "-loop",
+    "1",
+    "-i",
+    inputPath,
+    "-t",
+    String(durationSeconds),
+    "-vf",
+    "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+    "-an",
+    "-c:v",
+    "libx264",
+    "-pix_fmt",
+    "yuv420p",
+    "-preset",
+    "veryfast",
+    "-r",
+    "30",
+    outputPath,
+  ], { timeoutMs: 60_000 });
 }
 
 export async function probeMedia(filePath: string): Promise<{

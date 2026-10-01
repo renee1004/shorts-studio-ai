@@ -1,3 +1,5 @@
+import { and, eq } from "drizzle-orm";
+import { contentProjects } from "@shorts-os/db";
 import { createHash } from "node:crypto";
 import {
   claimsHaveCitationOrFlag,
@@ -67,7 +69,10 @@ import {
   type ShotRow,
   type StoredBrief,
 } from "@shorts-os/db";
-import type { ContentStudioProvider, YouTubeDiscoveryProvider } from "@shorts-os/providers";
+import type {
+  ContentStudioProvider,
+  YouTubeDiscoveryProvider,
+} from "@shorts-os/providers";
 
 type ProjectApprovalInput = {
   decision: "approved" | "rejected" | "changes_requested";
@@ -83,7 +88,9 @@ function storedClaims(value: unknown): FactualClaim[] {
   if (!Array.isArray(value)) return [];
   return (value as FactualClaim[]).map((claim) => ({
     ...claim,
-    citationIndexes: Array.isArray(claim.citationIndexes) ? claim.citationIndexes : [],
+    citationIndexes: Array.isArray(claim.citationIndexes)
+      ? claim.citationIndexes
+      : [],
     sourceIds: Array.isArray(claim.sourceIds) ? claim.sourceIds : [],
   }));
 }
@@ -99,8 +106,13 @@ function normalizedSentence(sentence: string): string {
   return sentence.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
-function manualClaimsAdded(previousText: string, nextText: string): FactualClaim[] {
-  const previous = new Set(manualSentences(previousText).map(normalizedSentence));
+function manualClaimsAdded(
+  previousText: string,
+  nextText: string,
+): FactualClaim[] {
+  const previous = new Set(
+    manualSentences(previousText).map(normalizedSentence),
+  );
   return manualSentences(nextText)
     .filter((sentence) => !previous.has(normalizedSentence(sentence)))
     .map((sentence) => ({
@@ -119,7 +131,9 @@ function shotsFromScript(structured: StructuredScript): ShotDraft[] {
     endSeconds: beat.endSeconds,
     narration: beat.narration,
     onScreenText: beat.onScreenText || null,
-    visualDescription: `${beat.purpose} 장면. 한 가지 정보만 보여줍니다. 화면 글자는 후처리합니다.`,
+    visualDescription:
+      beat.visualDescription ||
+      `${beat.purpose} 장면. 한 가지 정보만 보여줍니다. 화면 글자는 후처리합니다.`,
     cameraDirection: "static_9_16",
     generationPrompt: null,
     negativePrompt: "on-screen text, watermark, logo copy",
@@ -133,7 +147,11 @@ async function pinnedBrief(
   project: ContentProjectRow,
 ): Promise<StoredBrief | null> {
   if (!project.researchBriefId) return null;
-  const brief = await getResearchBriefById(db, workspaceId, project.researchBriefId);
+  const brief = await getResearchBriefById(
+    db,
+    workspaceId,
+    project.researchBriefId,
+  );
   if (!brief || brief.topicId !== project.topicId) {
     throw new DomainError(
       "CONFLICT",
@@ -257,7 +275,9 @@ function sourceMappingErrors(input: {
   const claimKeys = new Set(input.claims.map((claim) => claim.claimKey));
   for (const mapping of input.scriptCitations) {
     if (!claimKeys.has(mapping.claimKey)) {
-      errors.push(`${mapping.claimKey}: 존재하지 않는 Claim의 script_citations 매핑입니다.`);
+      errors.push(
+        `${mapping.claimKey}: 존재하지 않는 Claim의 script_citations 매핑입니다.`,
+      );
     }
   }
   for (const claim of input.claims) {
@@ -266,16 +286,24 @@ function sourceMappingErrors(input: {
       .filter((sourceId): sourceId is string => Boolean(sourceId));
     const expected = [...new Set(resolved)].sort();
     const storedInClaim = [...new Set(claim.sourceIds ?? [])].sort();
-    const persisted = [...(actual.get(claim.claimKey) ?? new Set<string>())].sort();
+    const persisted = [
+      ...(actual.get(claim.claimKey) ?? new Set<string>()),
+    ].sort();
 
     if (!claim.unverified && expected.length !== claim.citationIndexes.length) {
-      errors.push(`${claim.claimKey}: Research Citation에 해당하는 Source가 없습니다.`);
+      errors.push(
+        `${claim.claimKey}: Research Citation에 해당하는 Source가 없습니다.`,
+      );
     }
     if (JSON.stringify(expected) !== JSON.stringify(storedInClaim)) {
-      errors.push(`${claim.claimKey}: Claim sourceIds가 Research Citation과 다릅니다.`);
+      errors.push(
+        `${claim.claimKey}: Claim sourceIds가 Research Citation과 다릅니다.`,
+      );
     }
     if (JSON.stringify(expected) !== JSON.stringify(persisted)) {
-      errors.push(`${claim.claimKey}: script_citations 매핑이 Claim과 다릅니다.`);
+      errors.push(
+        `${claim.claimKey}: script_citations 매핑이 Claim과 다릅니다.`,
+      );
     }
   }
   return errors;
@@ -293,7 +321,10 @@ export async function importReferenceVideo(options: {
 }) {
   const videoId = parseYouTubeVideoId(options.request.url);
   if (!videoId) {
-    throw new DomainError("VALIDATION_FAILED", "YouTube 영상 URL 또는 11자 ID가 필요합니다.");
+    throw new DomainError(
+      "VALIDATION_FAILED",
+      "YouTube 영상 URL 또는 11자 ID가 필요합니다.",
+    );
   }
 
   const run = await startWorkflowRun(options.system, {
@@ -302,7 +333,10 @@ export async function importReferenceVideo(options: {
     entityType: "reference_video",
     requestedBy: options.userId,
     idempotencyKey: options.idempotencyKey,
-    input: { url: options.request.url, transcriptProvided: Boolean(options.request.transcript) },
+    input: {
+      url: options.request.url,
+      transcriptProvided: Boolean(options.request.transcript),
+    },
   });
 
   if (run.reused) {
@@ -316,14 +350,23 @@ export async function importReferenceVideo(options: {
     });
     const video = fetched.videos[0];
     if (!video) {
-      throw new DomainError("NOT_FOUND", "영상을 찾지 못했습니다. Demo에서는 Mock 메타데이터를 씁니다.");
+      throw new DomainError(
+        "NOT_FOUND",
+        "영상을 찾지 못했습니다. Demo에서는 Mock 메타데이터를 씁니다.",
+      );
     }
 
-    const ids = await upsertReferenceVideos(options.db, options.workspaceId, [video], {
-      now: new Date(),
-    });
+    const ids = await upsertReferenceVideos(
+      options.db,
+      options.workspaceId,
+      [video],
+      {
+        now: new Date(),
+      },
+    );
     const id = ids.get(video.externalVideoId);
-    if (!id) throw new DomainError("INTERNAL_ERROR", "영상 저장에 실패했습니다.");
+    if (!id)
+      throw new DomainError("INTERNAL_ERROR", "영상 저장에 실패했습니다.");
 
     const transcript = options.request.transcript?.trim() ?? "";
     await mergeReferenceMetadata(options.db, options.workspaceId, id, {
@@ -340,7 +383,10 @@ export async function importReferenceVideo(options: {
       provider: "youtube_data",
       status: "succeeded",
       inputSummary: { externalVideoId: videoId },
-      outputSummary: { referenceVideoId: id, transcriptProvided: transcript.length > 0 },
+      outputSummary: {
+        referenceVideoId: id,
+        transcriptProvided: transcript.length > 0,
+      },
     });
     await finishWorkflowRun(options.system, {
       runId: run.runId,
@@ -381,8 +427,13 @@ export async function analyzeReferenceDna(options: {
   referenceVideoId: string;
   idempotencyKey: string | null;
 }) {
-  const video = await getReferenceVideo(options.db, options.workspaceId, options.referenceVideoId);
-  if (!video) throw new DomainError("NOT_FOUND", "참고 영상을 찾을 수 없습니다.");
+  const video = await getReferenceVideo(
+    options.db,
+    options.workspaceId,
+    options.referenceVideoId,
+  );
+  if (!video)
+    throw new DomainError("NOT_FOUND", "참고 영상을 찾을 수 없습니다.");
   const meta = readImportMeta(video.metadata);
 
   const run = await startWorkflowRun(options.system, {
@@ -392,7 +443,10 @@ export async function analyzeReferenceDna(options: {
     entityId: video.id,
     requestedBy: options.userId,
     idempotencyKey: options.idempotencyKey,
-    input: { referenceVideoId: video.id, transcriptProvided: meta.transcriptProvided },
+    input: {
+      referenceVideoId: video.id,
+      transcriptProvided: meta.transcriptProvided,
+    },
   });
   if (run.reused) return { runId: run.runId, reused: true as const };
 
@@ -409,7 +463,10 @@ export async function analyzeReferenceDna(options: {
       const usedTranscript = result.content.evidence.some(
         (item) => item.evidenceType === "user_supplied_transcript",
       );
-      if (usedTranscript || result.content.structuredPattern.transcriptIncluded) {
+      if (
+        usedTranscript ||
+        result.content.structuredPattern.transcriptIncluded
+      ) {
         throw new DomainError(
           "VALIDATION_FAILED",
           "대본이 입력에 없는데 대본을 본 것처럼 분석 결과가 나왔습니다.",
@@ -435,9 +492,18 @@ export async function analyzeReferenceDna(options: {
       inputSummary: { transcriptProvided: meta.transcriptProvided },
       outputSummary: { patternId: pattern.id },
     });
-    await finishWorkflowRun(options.system, { runId: run.runId, status: "succeeded", output: { patternId: pattern.id } });
+    await finishWorkflowRun(options.system, {
+      runId: run.runId,
+      status: "succeeded",
+      output: { patternId: pattern.id },
+    });
 
-    return { runId: run.runId, reused: false as const, pattern, transcriptProvided: meta.transcriptProvided };
+    return {
+      runId: run.runId,
+      reused: false as const,
+      pattern,
+      transcriptProvided: meta.transcriptProvided,
+    };
   } catch (error) {
     await finishWorkflowRun(options.system, {
       runId: run.runId,
@@ -455,7 +521,11 @@ export async function createStudioProject(options: {
   userId: string;
   request: CreateProjectInput;
 }) {
-  const detail = await getTopicDetail(options.db, options.workspaceId, options.request.topicId);
+  const detail = await getTopicDetail(
+    options.db,
+    options.workspaceId,
+    options.request.topicId,
+  );
   if (!detail) throw new DomainError("NOT_FOUND", "Topic을 찾을 수 없습니다.");
   if (detail.topic.decision !== "approved") {
     throw new DomainError(
@@ -470,7 +540,11 @@ export async function createStudioProject(options: {
         options.workspaceId,
         options.request.researchBriefId,
       )
-    : await getLatestResearchBrief(options.db, options.workspaceId, options.request.topicId);
+    : await getLatestResearchBrief(
+        options.db,
+        options.workspaceId,
+        options.request.topicId,
+      );
   if (
     options.request.researchBriefId &&
     (!brief || brief.topicId !== options.request.topicId)
@@ -504,7 +578,11 @@ export async function generateProjectAngles(options: {
   projectId: string;
   idempotencyKey: string | null;
 }) {
-  const project = await requireProject(options.db, options.workspaceId, options.projectId);
+  const project = await requireProject(
+    options.db,
+    options.workspaceId,
+    options.projectId,
+  );
   const brief = await pinnedBrief(options.db, options.workspaceId, project);
 
   const run = await startWorkflowRun(options.system, {
@@ -532,17 +610,29 @@ export async function generateProjectAngles(options: {
     });
 
     if (result.angles.length !== 3) {
-      throw new DomainError("VALIDATION_FAILED", "Angle은 서로 다른 세 개여야 합니다.");
+      throw new DomainError(
+        "VALIDATION_FAILED",
+        "Angle은 서로 다른 세 개여야 합니다.",
+      );
     }
 
-    const version = await nextAngleVersion(options.db, options.workspaceId, project.id);
+    const version = await nextAngleVersion(
+      options.db,
+      options.workspaceId,
+      project.id,
+    );
     const rows = await insertAngleBatch(options.db, {
       workspaceId: options.workspaceId,
       projectId: project.id,
       version,
       drafts: result.angles,
     });
-    await updateProjectStatus(options.db, options.workspaceId, project.id, "research_ready");
+    await updateProjectStatus(
+      options.db,
+      options.workspaceId,
+      project.id,
+      "research_ready",
+    );
     await addWorkflowStep(options.system, {
       workspaceId: options.workspaceId,
       runId: run.runId,
@@ -576,13 +666,25 @@ export async function selectProjectAngle(options: {
   projectId: string;
   angleId: string;
 }) {
-  const project = await requireProject(options.db, options.workspaceId, options.projectId);
-  const angle = await getAngle(options.db, options.workspaceId, options.angleId);
+  const project = await requireProject(
+    options.db,
+    options.workspaceId,
+    options.projectId,
+  );
+  const angle = await getAngle(
+    options.db,
+    options.workspaceId,
+    options.angleId,
+  );
   if (!angle || angle.contentProjectId !== project.id) {
     throw new DomainError("NOT_FOUND", "Angle을 찾을 수 없습니다.");
   }
   await selectAngle(options.db, options.workspaceId, project.id, angle.id);
-  const scripts = await listScripts(options.db, options.workspaceId, project.id);
+  const scripts = await listScripts(
+    options.db,
+    options.workspaceId,
+    project.id,
+  );
   return {
     selectedAngleId: angle.id,
     previousScriptsPreserved: scripts.length > 0,
@@ -598,12 +700,24 @@ export async function generateProjectScript(options: {
   projectId: string;
   idempotencyKey: string | null;
 }) {
-  const project = await requireProject(options.db, options.workspaceId, options.projectId);
+  const project = await requireProject(
+    options.db,
+    options.workspaceId,
+    options.projectId,
+  );
   if (!project.selectedAngleId) {
-    throw new DomainError("INVALID_STATE_TRANSITION", "먼저 Angle을 선택하세요.");
+    throw new DomainError(
+      "INVALID_STATE_TRANSITION",
+      "먼저 Angle을 선택하세요.",
+    );
   }
-  const angle = await getAngle(options.db, options.workspaceId, project.selectedAngleId);
-  if (!angle) throw new DomainError("NOT_FOUND", "선택한 Angle을 찾을 수 없습니다.");
+  const angle = await getAngle(
+    options.db,
+    options.workspaceId,
+    project.selectedAngleId,
+  );
+  if (!angle)
+    throw new DomainError("NOT_FOUND", "선택한 Angle을 찾을 수 없습니다.");
 
   const brief = await pinnedBrief(options.db, options.workspaceId, project);
   const citationCount = brief?.content.citations.length ?? 0;
@@ -640,32 +754,38 @@ export async function generateProjectScript(options: {
       citationCount,
     });
 
-    const researchFactByKey = new Map(keyFacts.map((fact) => [fact.claimKey, fact]));
-    const providerClaims = (result.structured.factualClaims as FactualClaim[]).map(
-      (claim) => {
-        const researchFact = researchFactByKey.get(claim.claimKey);
-        return researchFact
-          ? {
-              ...claim,
-              statement: researchFact.statement,
-              unverified: researchFact.unverified,
-              citationIndexes: [...researchFact.citationIndexes],
-              sourceIds: [],
-            }
-          : {
-              ...claim,
-              unverified: true,
-              citationIndexes: [],
-              sourceIds: [],
-            };
-      },
+    const researchFactByKey = new Map(
+      keyFacts.map((fact) => [fact.claimKey, fact]),
     );
+    const providerClaims = (
+      result.structured.factualClaims as FactualClaim[]
+    ).map((claim) => {
+      const researchFact = researchFactByKey.get(claim.claimKey);
+      return researchFact
+        ? {
+            ...claim,
+            statement: researchFact.statement,
+            unverified: researchFact.unverified,
+            citationIndexes: [...researchFact.citationIndexes],
+            sourceIds: [],
+          }
+        : {
+            ...claim,
+            unverified: true,
+            citationIndexes: [],
+            sourceIds: [],
+          };
+    });
     const normalizedClaims = normalizeFactualClaims(
       providerClaims,
       citationCount,
     );
     const briefSources = brief
-      ? await resolveBriefCitationSources(options.db, options.workspaceId, brief)
+      ? await resolveBriefCitationSources(
+          options.db,
+          options.workspaceId,
+          brief,
+        )
       : [];
     const sourceByIndex = new Map(
       briefSources.map((source) => [source.citationIndex, source.sourceId]),
@@ -683,7 +803,9 @@ export async function generateProjectScript(options: {
     const unresolved = claims.some(
       (claim) =>
         !claim.unverified &&
-        claim.citationIndexes.some((citationIndex) => !sourceByIndex.has(citationIndex)),
+        claim.citationIndexes.some(
+          (citationIndex) => !sourceByIndex.has(citationIndex),
+        ),
     );
     if (unresolved) {
       throw new DomainError(
@@ -692,11 +814,21 @@ export async function generateProjectScript(options: {
       );
     }
     if (!claimsHaveCitationOrFlag(claims)) {
-      throw new DomainError("VALIDATION_FAILED", "사실 주장에 출처 또는 미확인 표시가 필요합니다.");
+      throw new DomainError(
+        "VALIDATION_FAILED",
+        "사실 주장에 출처 또는 미확인 표시가 필요합니다.",
+      );
     }
 
-    const text = scriptTextFrom({ ...result.structured, factualClaims: claims });
-    const version = await nextScriptVersion(options.db, options.workspaceId, project.id);
+    const text = scriptTextFrom({
+      ...result.structured,
+      factualClaims: claims,
+    });
+    const version = await nextScriptVersion(
+      options.db,
+      options.workspaceId,
+      project.id,
+    );
     const inputHash = createHash("sha256")
       .update(
         [
@@ -721,7 +853,9 @@ export async function generateProjectScript(options: {
       wordCount: tokenize(text).length,
       estimatedDurationSeconds: estimateSpokenSeconds(text),
       claims,
-      originalitySummary: { note: "QA 단계에서 n-gram 겹침을 계산합니다. 법률 판단이 아닙니다." },
+      originalitySummary: {
+        note: "QA 단계에서 n-gram 겹침을 계산합니다. 법률 판단이 아닙니다.",
+      },
       modelName: result.modelName,
       promptVersion: result.promptVersion,
       inputHash,
@@ -746,7 +880,12 @@ export async function generateProjectScript(options: {
       script.id,
       shotsFromScript({ ...result.structured, factualClaims: claims }),
     );
-    await updateProjectStatus(options.db, options.workspaceId, project.id, "scripting");
+    await updateProjectStatus(
+      options.db,
+      options.workspaceId,
+      project.id,
+      "scripting",
+    );
     await addWorkflowStep(options.system, {
       workspaceId: options.workspaceId,
       runId: run.runId,
@@ -781,15 +920,27 @@ export async function restoreScriptVersion(options: {
   projectId: string;
   fromScriptId: string;
 }) {
-  const project = await requireProject(options.db, options.workspaceId, options.projectId);
-  const source = await getScript(options.db, options.workspaceId, options.fromScriptId);
+  const project = await requireProject(
+    options.db,
+    options.workspaceId,
+    options.projectId,
+  );
+  const source = await getScript(
+    options.db,
+    options.workspaceId,
+    options.fromScriptId,
+  );
   if (!source || source.contentProjectId !== project.id) {
     throw new DomainError("NOT_FOUND", "복구할 Script를 찾을 수 없습니다.");
   }
   const originalStructured = source.structuredScript as StructuredScript;
   const claims = storedClaims(source.factualClaims);
   const structured = { ...originalStructured, factualClaims: claims };
-  const version = await nextScriptVersion(options.db, options.workspaceId, project.id);
+  const version = await nextScriptVersion(
+    options.db,
+    options.workspaceId,
+    project.id,
+  );
   const restored = await insertScript(options.db, {
     workspaceId: options.workspaceId,
     projectId: project.id,
@@ -800,7 +951,8 @@ export async function restoreScriptVersion(options: {
     wordCount: source.wordCount,
     estimatedDurationSeconds: Number(source.estimatedDurationSeconds),
     claims,
-    originalitySummary: (source.originalitySummary as Record<string, unknown>) ?? {},
+    originalitySummary:
+      (source.originalitySummary as Record<string, unknown>) ?? {},
     modelName: source.modelName ?? "restore",
     promptVersion: source.promptVersion,
     inputHash: source.inputHash,
@@ -850,32 +1002,48 @@ export async function patchDraftScript(options: {
   hook?: string;
   scriptText?: string;
 }) {
-  const script = await getScript(options.db, options.workspaceId, options.scriptId);
+  const script = await getScript(
+    options.db,
+    options.workspaceId,
+    options.scriptId,
+  );
   if (!script) throw new DomainError("NOT_FOUND", "Script를 찾을 수 없습니다.");
   const project = await requireProject(
     options.db,
     options.workspaceId,
     script.contentProjectId,
   );
-  const nextTitle = options.title === undefined ? script.title : options.title.trim();
-  const nextHook = options.hook === undefined ? script.hook : options.hook.trim();
+  const nextTitle =
+    options.title === undefined ? script.title : options.title.trim();
+  const nextHook =
+    options.hook === undefined ? script.hook : options.hook.trim();
   if (!nextTitle) {
-    throw new DomainError("VALIDATION_FAILED", "공백 Title은 저장할 수 없습니다.");
+    throw new DomainError(
+      "VALIDATION_FAILED",
+      "공백 Title은 저장할 수 없습니다.",
+    );
   }
   if (!nextHook) {
-    throw new DomainError("VALIDATION_FAILED", "공백 Hook은 저장할 수 없습니다.");
+    throw new DomainError(
+      "VALIDATION_FAILED",
+      "공백 Hook은 저장할 수 없습니다.",
+    );
   }
   const oldStructured = script.structuredScript as StructuredScript;
   const originalClaims = storedClaims(script.factualClaims);
   const requestedText = options.scriptText?.trim() ?? script.scriptText.trim();
   if (!requestedText) {
-    throw new DomainError("VALIDATION_FAILED", "공백 Script는 저장할 수 없습니다.");
+    throw new DomainError(
+      "VALIDATION_FAILED",
+      "공백 Script는 저장할 수 없습니다.",
+    );
   }
   const initialParagraphs = requestedText
     .split(/\n+/)
     .map((paragraph) => paragraph.trim())
     .filter(Boolean);
-  const paragraphs = initialParagraphs.length > 0 ? initialParagraphs : [requestedText];
+  const paragraphs =
+    initialParagraphs.length > 0 ? initialParagraphs : [requestedText];
   if (options.hook !== undefined) paragraphs[0] = nextHook;
   if (paragraphs.length < 2 || paragraphs.length > 16) {
     throw new DomainError(
@@ -905,10 +1073,13 @@ export async function patchDraftScript(options: {
       startSeconds: Math.round(index * segment * 100) / 100,
       endSeconds: Math.round((index + 1) * segment * 100) / 100,
       purpose:
-        index === 0 ? "hook" : index === paragraphs.length - 1 ? "cta" : "content",
+        index === 0
+          ? "hook"
+          : index === paragraphs.length - 1
+            ? "cta"
+            : "content",
       narration,
-      onScreenText:
-        index === 0 ? nextHook : "",
+      onScreenText: index === 0 ? nextHook : "",
       claimKeys: claims
         .filter((claim) => narration.includes(claim.statement))
         .map((claim) => claim.claimKey),
@@ -916,7 +1087,11 @@ export async function patchDraftScript(options: {
     factualClaims: claims,
     estimatedDurationSeconds: estimateSpokenSeconds(text),
   });
-  const version = await nextScriptVersion(options.db, options.workspaceId, project.id);
+  const version = await nextScriptVersion(
+    options.db,
+    options.workspaceId,
+    project.id,
+  );
   const created = await insertScript(options.db, {
     workspaceId: options.workspaceId,
     projectId: project.id,
@@ -927,7 +1102,8 @@ export async function patchDraftScript(options: {
     wordCount: tokenize(text).length,
     estimatedDurationSeconds: structured.estimatedDurationSeconds,
     claims,
-    originalitySummary: (script.originalitySummary as Record<string, unknown>) ?? {},
+    originalitySummary:
+      (script.originalitySummary as Record<string, unknown>) ?? {},
     modelName: script.modelName ?? "manual-edit",
     promptVersion: script.promptVersion,
     inputHash: snapshotHash({
@@ -963,7 +1139,12 @@ export async function patchDraftScript(options: {
     created.id,
     shotsFromScript(structured),
   );
-  await updateProjectStatus(options.db, options.workspaceId, project.id, "scripting");
+  await updateProjectStatus(
+    options.db,
+    options.workspaceId,
+    project.id,
+    "scripting",
+  );
   return { script: created, shots: shotRows, qaRequired: true };
 }
 
@@ -972,7 +1153,11 @@ export async function generateShotsForScript(options: {
   workspaceId: string;
   scriptId: string;
 }) {
-  const script = await getScript(options.db, options.workspaceId, options.scriptId);
+  const script = await getScript(
+    options.db,
+    options.workspaceId,
+    options.scriptId,
+  );
   if (!script) throw new DomainError("NOT_FOUND", "Script를 찾을 수 없습니다.");
   const structured = script.structuredScript as StructuredScript;
   const rows = await replaceShots(
@@ -994,8 +1179,16 @@ export async function runProjectQa(options: {
   checks: QaCheckType[];
   idempotencyKey: string | null;
 }) {
-  const project = await requireProject(options.db, options.workspaceId, options.projectId);
-  const versions = await listScripts(options.db, options.workspaceId, project.id);
+  const project = await requireProject(
+    options.db,
+    options.workspaceId,
+    options.projectId,
+  );
+  const versions = await listScripts(
+    options.db,
+    options.workspaceId,
+    project.id,
+  );
   const script = options.scriptId
     ? await getScript(options.db, options.workspaceId, options.scriptId)
     : (versions[0] ?? null);
@@ -1010,7 +1203,11 @@ export async function runProjectQa(options: {
     entityId: script.id,
     requestedBy: options.userId,
     idempotencyKey: options.idempotencyKey,
-    input: { projectId: project.id, scriptId: script.id, checks: options.checks },
+    input: {
+      projectId: project.id,
+      scriptId: script.id,
+      checks: options.checks,
+    },
   });
   if (run.reused) return { runId: run.runId, reused: true as const };
 
@@ -1070,7 +1267,12 @@ export async function runProjectQa(options: {
       modelName: "deterministic-qa",
       inputHash: integrity.inputHash,
     });
-    await updateProjectStatus(options.db, options.workspaceId, project.id, "qa_review");
+    await updateProjectStatus(
+      options.db,
+      options.workspaceId,
+      project.id,
+      "qa_review",
+    );
     await addWorkflowStep(options.system, {
       workspaceId: options.workspaceId,
       runId: run.runId,
@@ -1079,7 +1281,10 @@ export async function runProjectQa(options: {
       provider: "internal",
       status: "succeeded",
       inputSummary: { scriptId: script.id },
-      outputSummary: { blocking: qaHasBlocker(checks), checks: checks.map((check) => check.type) },
+      outputSummary: {
+        blocking: qaHasBlocker(checks),
+        checks: checks.map((check) => check.type),
+      },
     });
     await finishWorkflowRun(options.system, {
       runId: run.runId,
@@ -1113,8 +1318,16 @@ export async function decideProjectApproval(options: {
   projectId: string;
   request: ProjectApprovalInput;
 }) {
-  const project = await requireProject(options.db, options.workspaceId, options.projectId);
-  const versions = await listScripts(options.db, options.workspaceId, project.id);
+  const project = await requireProject(
+    options.db,
+    options.workspaceId,
+    options.projectId,
+  );
+  const versions = await listScripts(
+    options.db,
+    options.workspaceId,
+    project.id,
+  );
   const script = options.request.scriptId
     ? await getScript(options.db, options.workspaceId, options.request.scriptId)
     : (versions[0] ?? null);
@@ -1189,7 +1402,12 @@ export async function decideProjectApproval(options: {
       : options.request.decision === "rejected"
         ? "rejected"
         : "qa_review";
-  await updateProjectStatus(options.db, options.workspaceId, project.id, nextStatus);
+  await updateProjectStatus(
+    options.db,
+    options.workspaceId,
+    project.id,
+    nextStatus,
+  );
   await writeAuditLog(options.system, {
     workspaceId: options.workspaceId,
     actorUserId: options.userId,
@@ -1199,7 +1417,11 @@ export async function decideProjectApproval(options: {
     afterState: { decision: options.request.decision, snapshotHash: hash },
   });
 
-  return { approval, snapshotHash: hash, blocking: readiness.blockingChecks.length > 0 };
+  return {
+    approval,
+    snapshotHash: hash,
+    blocking: readiness.blockingChecks.length > 0,
+  };
 }
 
 export async function getProjectApprovalReadiness(
@@ -1222,7 +1444,8 @@ export async function getProjectApprovalReadiness(
     const row = latestByType.get(type);
     return Boolean(
       row &&
-        (row.inputHash !== integrity.inputHash || row.ruleVersion !== QA_RULE_VERSION),
+      (row.inputHash !== integrity.inputHash ||
+        row.ruleVersion !== QA_RULE_VERSION),
     );
   });
   const blockingChecks = qaCheckTypes.filter(
@@ -1266,7 +1489,11 @@ export async function loadStudioBoard(db: Database, workspaceId: string) {
   return { projects, eligible, patterns, videos };
 }
 
-export async function loadStudioProject(db: Database, workspaceId: string, projectId: string) {
+export async function loadStudioProject(
+  db: Database,
+  workspaceId: string,
+  projectId: string,
+) {
   const project = await requireProject(db, workspaceId, projectId);
   const [angles, versions, approvals, brief] = await Promise.all([
     listAngles(db, workspaceId, projectId),
@@ -1275,8 +1502,12 @@ export async function loadStudioProject(db: Database, workspaceId: string, proje
     pinnedBrief(db, workspaceId, project),
   ]);
   const latestScript = versions[0] ?? null;
-  const shotRows = latestScript ? await listShots(db, workspaceId, latestScript.id) : [];
-  const qa = latestScript ? await listLatestQa(db, workspaceId, projectId, latestScript.id) : [];
+  const shotRows = latestScript
+    ? await listShots(db, workspaceId, latestScript.id)
+    : [];
+  const qa = latestScript
+    ? await listLatestQa(db, workspaceId, projectId, latestScript.id)
+    : [];
   const approvalReadiness = latestScript
     ? await getProjectApprovalReadiness(db, workspaceId, project, latestScript)
     : {
@@ -1311,7 +1542,8 @@ async function requireProject(
   projectId: string,
 ): Promise<ContentProjectRow> {
   const project = await getContentProject(db, workspaceId, projectId);
-  if (!project) throw new DomainError("NOT_FOUND", "Project를 찾을 수 없습니다.");
+  if (!project)
+    throw new DomainError("NOT_FOUND", "Project를 찾을 수 없습니다.");
   return project;
 }
 
@@ -1336,6 +1568,11 @@ export async function importProjectScript(options: {
     options.text,
     project.targetDurationSeconds,
   );
+  const { parseImportedScenes } = await import("@shorts-os/contracts");
+  const imported = parseImportedScenes(
+    options.text,
+    project.targetDurationSeconds,
+  );
   const scriptText = structured.beats.map((beat) => beat.narration).join("\n");
   const script = await insertScript(options.db, {
     workspaceId: options.workspaceId,
@@ -1352,6 +1589,8 @@ export async function importProjectScript(options: {
     estimatedDurationSeconds: structured.estimatedDurationSeconds,
     claims: structured.factualClaims,
     originalitySummary: {
+      originalText: options.text,
+      importFormat: imported.isTable ? "markdown-table" : "paragraphs",
       note: "사용자 제공 대본. 출처·사실관계와 장면 시간을 검토하세요.",
     },
     modelName: "user-import",
@@ -1363,8 +1602,22 @@ export async function importProjectScript(options: {
     options.db,
     options.workspaceId,
     script.id,
-    shotsFromScript(structured),
+    shotsFromScript(structured).map((shot, index) => ({
+      ...shot,
+      visualDescription:
+        imported.scenes[index]?.visualDescription || shot.visualDescription,
+    })),
   );
+  if (imported.isTable)
+    await options.db
+      .update(contentProjects)
+      .set({ targetDurationSeconds: structured.targetDurationSeconds })
+      .where(
+        and(
+          eq(contentProjects.id, project.id),
+          eq(contentProjects.workspaceId, options.workspaceId),
+        ),
+      );
   await updateProjectStatus(
     options.db,
     options.workspaceId,

@@ -58,6 +58,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-noto-cjk
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
+      - run: python3 -m unittest discover -s scripts -p 'test_notebooklm_bridge.py'
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm db:migrate

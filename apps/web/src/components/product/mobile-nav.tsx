@@ -45,7 +45,7 @@ export function ProductMobileNav() {
       </ul>
       <details className="px-4 pb-2 text-sm">
         <summary className="cursor-pointer text-muted-foreground">
-          세부 작업 도구
+          고급 도구
         </summary>
         <div className="flex flex-wrap gap-4 py-3">
           {advancedNavItems

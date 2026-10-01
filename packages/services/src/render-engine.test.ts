@@ -6,6 +6,7 @@ import {
   composeRender,
   ffmpegAvailable,
   writePlaceholderClip,
+  runCommand,
 } from "./render-engine";
 import { pcmToWave } from "@shorts-os/providers";
 import {
@@ -21,6 +22,9 @@ afterEach(() => {
 });
 
 describe("FFmpeg fixture render", () => {
+  it("terminates a stalled conversion process", async () => {
+    await expect(runCommand(process.execPath, ["-e", "setTimeout(() => {}, 60000)"], { timeoutMs: 200 })).rejects.toThrow("시간이 초과");
+  });
   it.each([false, true])(
     "단색 클립을 합성하고 음성 포함 여부를 검사한다: %s",
     async (withVoice) => {

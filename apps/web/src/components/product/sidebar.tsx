@@ -31,11 +31,11 @@ export function ProductSidebar({
     <aside className="hidden w-60 shrink-0 flex-col border-r border-border/70 bg-sidebar lg:flex">
       <div className="border-b border-border/70 px-4 py-4">
         <p className="font-mono text-[10px] tracking-widest text-muted-foreground">
-          WORKSPACE
+          내 작업 공간
         </p>
         <p className="mt-1 truncate text-sm font-bold">{active?.name ?? "-"}</p>
         <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">
-          {appMode === "demo" ? "DEMO MODE · 외부 키 없음" : "LIVE"}
+          {appMode === "demo" ? "체험 모드" : "영상 제작"}
         </p>
       </div>
 
@@ -86,7 +86,7 @@ export function ProductSidebar({
           }
         >
           <summary className="cursor-pointer px-3 py-2 text-sm text-muted-foreground">
-            세부 작업 도구
+            고급 도구
           </summary>
           <ul>
             {advancedNavItems

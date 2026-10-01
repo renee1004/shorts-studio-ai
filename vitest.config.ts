@@ -11,6 +11,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      "@": resolve("./apps/web/src"),
       "@shorts-os/config": resolve("./packages/config/src/index.ts"),
       "@shorts-os/contracts": resolve("./packages/contracts/src/index.ts"),
       "@shorts-os/db": resolve("./packages/db/src/index.ts"),

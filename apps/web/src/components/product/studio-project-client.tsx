@@ -6,9 +6,8 @@ import Link from "next/link";
 import { toast } from "sonner";
 import type { FactualClaim } from "@shorts-os/contracts";
 import { Button } from "@/components/ui/button";
+import { CreationSteps } from "./creation-steps";
 import { cn } from "@/lib/utils";
-
-const steps = ["Research", "Angles", "Script", "Shots", "QA", "Render", "Publish"] as const;
 
 type Angle = {
   id: string;
@@ -85,7 +84,12 @@ export function StudioProjectClient({
     staleChecks: string[];
     blockingChecks: string[];
   };
-  snapshotHashes: { id: string; decision: string; snapshotHash: string; decidedAt: string }[];
+  snapshotHashes: {
+    id: string;
+    decision: string;
+    snapshotHash: string;
+    decidedAt: string;
+  }[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -94,7 +98,8 @@ export function StudioProjectClient({
   const [restoreId, setRestoreId] = useState(scripts[1]?.id ?? "");
 
   const activeStep = useMemo(() => {
-    if (project.status === "rendered" || project.status === "rendering") return 5;
+    if (project.status === "rendered" || project.status === "rendering")
+      return 5;
     if (project.status === "approved_to_render") return 5;
     if (qa.length > 0) return 4;
     if (shots.length > 0) return 3;
@@ -102,62 +107,64 @@ export function StudioProjectClient({
     if (project.selectedAngleId) return 2;
     if (angles.length > 0) return 1;
     return 0;
-  }, [angles.length, latest, project.selectedAngleId, project.status, qa.length, shots.length]);
+  }, [
+    angles.length,
+    latest,
+    project.selectedAngleId,
+    project.status,
+    qa.length,
+    shots.length,
+  ]);
 
-  async function call(
-    path: string,
-    init: RequestInit,
-    success: string,
-  ) {
+  async function call(path: string, init: RequestInit, success: string) {
     setBusy(path);
     try {
       const response = await fetch(path, init);
-      const payload = (await response.json()) as { error?: { message: string } };
+      const payload = (await response.json()) as {
+        error?: { message: string };
+      };
       if (!response.ok) throw new Error(payload.error?.message ?? success);
       toast.success(success);
       startTransition(() => router.refresh());
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "요청이 실패했습니다.");
+      toast.error(
+        error instanceof Error ? error.message : "요청이 실패했습니다.",
+      );
     } finally {
       setBusy(null);
     }
   }
 
-  const latestAngles = angles.filter((angle) => angle.version === angles[0]?.version);
+  const latestAngles = angles.filter(
+    (angle) => angle.version === angles[0]?.version,
+  );
 
   return (
     <div className="space-y-6">
-      <ol className="flex gap-1 overflow-x-auto text-[11px] font-mono">
-        {steps.map((step, index) => (
-          <li
-            key={step}
-            className={cn(
-              "shrink-0 rounded-full border px-2.5 py-1",
-              index === activeStep
-                ? "border-primary bg-primary/10 text-foreground"
-                : index < activeStep
-                  ? "border-success/40 text-success"
-                  : "border-border text-muted-foreground",
-            )}
-          >
-            {step}
-          </li>
-        ))}
-      </ol>
-      <p className="text-[12px] text-muted-foreground">
-        Publish는 Phase 5입니다. 승인이 끝나면 Video Factory에서 합성합니다.
+      <CreationSteps current={activeStep >= 5 ? 3 : latest ? 2 : 1} />
+      <p className="text-sm text-muted-foreground">
+        대본과 장면을 확인하고, 내용 검사를 마치면 영상으로 만들 수 있어요.
       </p>
 
-      <section className="rounded-2xl border border-border/70 bg-card p-5">
-        <h2 className="text-sm font-bold">Research</h2>
+      <details className="rounded-2xl border border-border/70 bg-card p-5">
+        <summary className="cursor-pointer text-sm font-semibold">
+          참고 자료 보기
+        </summary>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          {briefSummary ?? "연결된 Brief가 없습니다. Research에서 생성하면 인용 매핑에 쓰입니다."}
+          {briefSummary ??
+            "연결된 Brief가 없습니다. Research에서 생성하면 인용 매핑에 쓰입니다."}
         </p>
-      </section>
+      </details>
 
-      <section className="space-y-3">
+      <details
+        open={!latest || undefined}
+        className="space-y-3 rounded-2xl border p-5"
+      >
+        <summary className="cursor-pointer text-sm font-semibold">
+          고급: 이야기 구성 바꾸기
+        </summary>
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-lg font-bold">Angles</h2>
+          <h2 className="text-lg font-bold">이야기 구성</h2>
           <Button
             disabled={!canWrite || busy !== null || pending}
             onClick={() =>
@@ -175,12 +182,12 @@ export function StudioProjectClient({
               )
             }
           >
-            3개 생성
+            구성 3개 만들기 · API 사용
           </Button>
         </div>
         {latestAngles.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-border p-5 text-sm text-muted-foreground">
-            Angle이 없습니다.
+            아직 만든 구성이 없습니다.
           </p>
         ) : (
           <ul className="grid gap-3 md:grid-cols-3">
@@ -189,11 +196,15 @@ export function StudioProjectClient({
                 key={angle.id}
                 className={cn(
                   "rounded-2xl border p-4",
-                  angle.selected ? "border-primary bg-primary/[0.06]" : "border-border/70 bg-card",
+                  angle.selected
+                    ? "border-primary bg-primary/[0.06]"
+                    : "border-border/70 bg-card",
                 )}
               >
                 <p className="text-sm font-bold">{angle.title}</p>
-                <p className="mt-2 text-[12px] text-muted-foreground">{angle.hook}</p>
+                <p className="mt-2 text-[12px] text-muted-foreground">
+                  {angle.hook}
+                </p>
                 <p className="mt-2 text-[12px]">{angle.promise}</p>
                 <Button
                   className="mt-3"
@@ -213,11 +224,11 @@ export function StudioProjectClient({
             ))}
           </ul>
         )}
-      </section>
+      </details>
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-bold">Script</h2>
+          <h2 className="text-lg font-bold">대본 확인</h2>
           <div className="flex flex-wrap gap-2">
             <Button
               disabled={!canWrite || !project.selectedAngleId || busy !== null}
@@ -236,7 +247,7 @@ export function StudioProjectClient({
                 )
               }
             >
-              새 버전 생성
+              대본 다시 만들기 · API 사용
             </Button>
             {scripts.length > 1 ? (
               <>
@@ -274,23 +285,27 @@ export function StudioProjectClient({
         </div>
         {!latest ? (
           <p className="rounded-2xl border border-dashed border-border p-5 text-sm text-muted-foreground">
-            선택한 Angle로 Script를 만드세요.
+            위에서 구성을 선택한 뒤 대본을 만들어 주세요.
           </p>
         ) : (
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="rounded-2xl border border-border/70 bg-card p-4">
               <p className="font-mono text-[11px] text-muted-foreground">
-                v{latest.version} · 추정 {latest.estimatedDurationSeconds}초 · 목표{" "}
-                {project.targetDurationSeconds}초
+                v{latest.version} · 추정 {latest.estimatedDurationSeconds}초 ·
+                목표 {project.targetDurationSeconds}초
               </p>
               <h3 className="mt-2 text-sm font-bold">{latest.title}</h3>
-              <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed">{latest.scriptText}</p>
+              <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed">
+                {latest.scriptText}
+              </p>
             </div>
             <div className="rounded-2xl border border-border/70 bg-card p-4">
-              <h3 className="text-sm font-bold">Claim · Citation</h3>
+              <h3 className="text-sm font-bold">사실관계와 출처</h3>
               <ul className="mt-3 space-y-2">
                 {latest.factualClaims.length === 0 ? (
-                  <li className="text-[12px] text-muted-foreground">사실 주장이 없습니다.</li>
+                  <li className="text-[12px] text-muted-foreground">
+                    사실 주장이 없습니다.
+                  </li>
                 ) : (
                   latest.factualClaims.map((claim) => (
                     <li key={claim.claimKey} className="text-[12px]">
@@ -302,7 +317,9 @@ export function StudioProjectClient({
                             : "border-success/40 text-success",
                         )}
                       >
-                        {claim.unverified ? "UNVERIFIED" : `cite ${claim.citationIndexes.join(",")}`}
+                        {claim.unverified
+                          ? "UNVERIFIED"
+                          : `cite ${claim.citationIndexes.join(",")}`}
                       </span>
                       {claim.statement}
                     </li>
@@ -316,7 +333,7 @@ export function StudioProjectClient({
 
       <section>
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold">Shots</h2>
+          <h2 className="text-lg font-bold">장면 확인</h2>
           {latest ? (
             <Button
               variant="outline"
@@ -334,17 +351,25 @@ export function StudioProjectClient({
           ) : null}
         </div>
         {shots.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">Script를 만들면 Shot이 함께 생깁니다.</p>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Script를 만들면 Shot이 함께 생깁니다.
+          </p>
         ) : (
           <ul className="mt-3 space-y-2">
             {shots.map((shot) => (
-              <li key={shot.id} className="rounded-2xl border border-border/70 bg-card px-4 py-3">
+              <li
+                key={shot.id}
+                className="rounded-2xl border border-border/70 bg-card px-4 py-3"
+              >
                 <p className="font-mono text-[11px] text-muted-foreground">
-                  #{shot.sequenceNo} · {shot.startSeconds}–{shot.endSeconds}s · {shot.assetStrategy}
+                  #{shot.sequenceNo} · {shot.startSeconds}–{shot.endSeconds}s ·{" "}
+                  {shot.assetStrategy}
                 </p>
                 <p className="mt-1 text-sm">{shot.visualDescription}</p>
                 {shot.onScreenText ? (
-                  <p className="mt-1 text-[12px] text-muted-foreground">화면: {shot.onScreenText}</p>
+                  <p className="mt-1 text-[12px] text-muted-foreground">
+                    화면: {shot.onScreenText}
+                  </p>
                 ) : null}
               </li>
             ))}
@@ -354,7 +379,7 @@ export function StudioProjectClient({
 
       <section>
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold">QA</h2>
+          <h2 className="text-lg font-bold">내용 검사</h2>
           <Button
             disabled={!canWrite || !latest}
             onClick={() =>
@@ -376,11 +401,16 @@ export function StudioProjectClient({
           </Button>
         </div>
         {qa.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">아직 QA 결과가 없습니다.</p>
+          <p className="mt-3 text-sm text-muted-foreground">
+            아직 QA 결과가 없습니다.
+          </p>
         ) : (
           <ul className="mt-3 grid gap-2 sm:grid-cols-2">
             {qa.map((row) => (
-              <li key={row.checkType} className="rounded-2xl border border-border/70 bg-card p-4">
+              <li
+                key={row.checkType}
+                className="rounded-2xl border border-border/70 bg-card p-4"
+              >
                 <p className="text-sm font-bold">
                   {row.checkType}{" "}
                   <span className="font-mono text-[11px] text-muted-foreground">
@@ -399,14 +429,15 @@ export function StudioProjectClient({
       </section>
 
       <section className="rounded-2xl border border-border/70 bg-card p-5">
-        <h2 className="text-sm font-bold">Reviewer 승인</h2>
+        <h2 className="text-sm font-bold">최종 확인</h2>
         {!approvalReadiness.canApprove ? (
           <p className="mt-2 text-sm text-destructive">
             {approvalReadiness.message}
           </p>
         ) : (
           <p className="mt-2 text-[12px] text-muted-foreground">
-            승인 시 Script·Shot·QA의 스냅샷 해시를 저장합니다. 다음 단계는 Video Factory입니다.
+            승인 시 Script·Shot·QA의 스냅샷 해시를 저장합니다. 다음 단계는 영상
+            만들기입니다.
           </p>
         )}
         <div className="mt-3 flex flex-wrap gap-2">
@@ -418,7 +449,10 @@ export function StudioProjectClient({
                 {
                   method: "POST",
                   headers: { "content-type": "application/json" },
-                  body: JSON.stringify({ decision: "approved", scriptId: latest?.id }),
+                  body: JSON.stringify({
+                    decision: "approved",
+                    scriptId: latest?.id,
+                  }),
                 },
                 "승인했고 스냅샷 해시를 저장했습니다",
               )
@@ -435,7 +469,10 @@ export function StudioProjectClient({
                 {
                   method: "POST",
                   headers: { "content-type": "application/json" },
-                  body: JSON.stringify({ decision: "rejected", scriptId: latest?.id }),
+                  body: JSON.stringify({
+                    decision: "rejected",
+                    scriptId: latest?.id,
+                  }),
                 },
                 "반려했습니다",
               )
@@ -448,7 +485,8 @@ export function StudioProjectClient({
           <ul className="mt-4 space-y-1 font-mono text-[11px] text-muted-foreground">
             {snapshotHashes.map((row) => (
               <li key={row.id}>
-                {row.decision} · {row.snapshotHash.slice(0, 16)}… · {row.decidedAt}
+                {row.decision} · {row.snapshotHash.slice(0, 16)}… ·{" "}
+                {row.decidedAt}
               </li>
             ))}
           </ul>
@@ -457,8 +495,11 @@ export function StudioProjectClient({
         project.status === "rendering" ||
         project.status === "rendered" ? (
           <p className="mt-4 text-sm">
-            <Link href="/factory" className="font-semibold underline underline-offset-4">
-              Video Factory에서 합성하기
+            <Link
+              href="/factory"
+              className="font-semibold underline underline-offset-4"
+            >
+              영상 만들기에서 합성하기
             </Link>
           </p>
         ) : null}

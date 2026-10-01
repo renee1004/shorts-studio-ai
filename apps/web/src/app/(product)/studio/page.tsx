@@ -18,10 +18,9 @@ export default async function StudioPage() {
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6">
       <header>
-        <h1 className="text-2xl font-black">Content Studio</h1>
+        <h1 className="text-2xl font-black">내 작업함</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          승인한 주제에서 Angle 3개, Script 버전, Shot, QA, 승인까지 진행합니다. Demo는 출처를
-          만들지 않으므로 사실 주장은 미확인으로 표시됩니다.
+          작업을 선택해 이어서 만들거나, 새 영상을 시작하세요.
         </p>
       </header>
       <StudioListClient
